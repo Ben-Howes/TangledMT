@@ -1,0 +1,240 @@
+---
+title: "Metabolic Theory Equations and Understanding"
+author: "Benjamin Howes"
+date: "05/12/2023"
+server: shiny
+format: 
+  html:
+    df-print: kable
+    code-fold: true
+    code-tools: true
+    toc: true
+    toc-depth: 2
+    toc-location: left
+---
+
+### Description
+In this document I aim to understand the various equations regarding metabolic theory, including plotting of the functions for visualisation.
+The majority of these come from Rall et al 2012.
+
+```{r}
+#| context: setup
+#| include: false
+
+library(tidyverse)
+library(shiny)
+library(shinyWidgets)
+library(viridis)
+library(lemon)
+
+## Stop information info showing about which groups have been summarised
+options(dplyr.summarise.inform = FALSE)
+```
+
+# The Anatomy of the Functional Response
+$$
+F_{ij} = \frac{a_{ij} \times N_j}{1 + (a_{ij} \times h_{ij} \times N_j)} 
+$$
+
+This basically describes the feeding rate of consumer $i$ on resource $j$.
+
+Where $a_{ij}$ is attack rate of consumer $i$ on resource $j$, which is the rate of successful attacks including processes such as searching, detection, encounter and success of the attack itself.
+
+$N_j$ is the density of resource $j$ either in $m^2$ or $m^3$ depending on the environment.
+
+And $h_{ij}$ is the handling time of consumer $i$ on resource $j$, which describes the time a consumer $i$ needs to fight, subdue, ingest, and digest a resource item $j$.
+
+Below is a responsive plot where we can change the values of $a_{ij}, N_j, and h_{ij}$
+
+```{r}
+#| context: setup
+
+## Make data frame containing different values of a, N and h
+a = seq(0.5, 3, by = 0.5)
+N = c(1, 10, 100)
+h = seq(0.1, 20, by = 0.1)
+
+Fij = expand.grid(h, a, N) %>%
+    rename("h" = 1, "a" = 2, "N" = 3) %>%
+    mutate(Fij = (a*N)/(1 + (a*N*h)))
+
+selectInput('attackFilter', 'Attack Rate', a)
+
+plotOutput("functionalPlot")
+```
+
+```{r}
+#| context: server
+
+library(ggplot2)
+
+functionalData = reactive({
+  filter(Fij, a == input$attackFilter)
+})
+
+output$functionalPlot = renderPlot({
+  ggplot(functionalData(), aes(h, Fij, col = as.factor(N))) +
+  geom_line(linewidth = 2) +
+  theme_classic() +
+  labs(x = "Handling Time (s)", y = "Functional Response\n(Feeding Rate)",
+  col = "Resource Density") +
+  theme(text = element_text(size = 20)) +
+  ylim(0, 10)
+})
+```
+
+# Body Mass Dependence 
+The parts that make up the functional response are assumed to be affected by the body mass of consumer $i$ and resource $j$. For instance, handling time of larger resources should be larger than for smaller resources (assuming the consumer body mass is the same).
+
+### Handling Time
+We can recast the functional response to be:
+$$
+F_{ij} = F_{ij, max} \times f(a_{ij}, N_i)
+$$
+
+Where $F_{ij, max} = \frac {1}{h_{ij}}$ which is the maximum feeding rate of consumer $i$ of resource $j$, which when plotted looks as follows:
+
+```{r, fig.width=7,fig.height=5}
+#| label: fig-fijmax
+#| fig-cap: Relationship between handling time and maximum feeding rate per second (Fijmax). Note that feeding rate can be greater than 1 if the handling time is less than 1 second.
+#| warning: false
+FijDat = data.frame(h = seq(1, 100)) %>% mutate(FijMax = 1/h)
+ggplot(FijDat, aes(h, FijMax)) + 
+    geom_line(linewidth = 2) +
+    theme_classic() +
+    labs(x = "Handling Time (s)", y = "Maximum Feeding Rate\n(Fij Max)") +
+    theme(text = element_text(size = 25))
+
+```
+
+We can then look at a function which describes the consumer $i$ proximity to maximum feeding rate on resource $j$. This function is dimeonless and bounded between 0 - 1, where higher values mean the consumer $i$ is closer to maximum feeding rate on resource $j$.
+
+$$
+f_{ij} = \frac{a_{ij} \times N_j}{F_{ij, max} + (a_{ij} \times N_j)}
+$$
+
+To persist a consumer needs to balance its food instake rate (via $F_{ij}$) to the metabolic rate. Which means that $F_{ij, max}$ should share a scaling relationship with metabolic rate, which means handling time should scale as: 
+
+$$
+h_{ij} = \frac {1}{F_{ij, max}} \propto m_{i}^{-0.75}
+$$
+
+I don't understand how the above works really, but let's see if we need it as we go on.
+The actual form for handling time is below:
+
+$$
+h_{ij} = h_{0} \times m_{i}^{-0.66 to 1} \times m_{j}^{0 to 1}
+$$
+
+Where $m_{i}$ is the mass of consumer $i$, and $m_j$ is the mass of consumer $j$.
+
+Both $m_i$ and $m_j$ have constant exponents, though the exact value of them is unknown. $m_i$ is however usually set to -0.75.
+
+Lastly, $h_0$ is a constant.
+
+Plotted this looks as follows @fig-hij
+
+```{r, fig.width=12,fig.height=10}
+#| label: fig-hij
+#| fig-cap: Relationship between handling time, mass of consumer i and mas of consumer j. Columns are changes to the constant h0, and rows are changes to the exponent of Mj. We can see the handling times are highest for small consumers eating large resources, which makes sense.
+#| warning: false
+masses = seq(1, 10, by = 0.1)
+h0 = c(0.1, 0.5, 0.9)
+mj = c(0.25, 0.5, 0.75)
+
+hij = expand.grid(masses, masses, h0, mj) %>%
+    rename("Mi" = 1, "Mj" = 2, "h0" = 3, "mj" = 4) %>%
+    mutate(hij = h0*(Mi^-0.75)*(Mj^mj))
+
+ggplot(hij, aes(Mi, Mj, fill = hij)) +
+    geom_tile() +
+    facet_rep_grid(mj ~ h0) +
+    theme_classic() +
+    scale_fill_viridis_c() +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Handling\nTime (s)") +
+    theme(text = element_text(size = 25)) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0)) 
+
+```
+
+### Attack Rate
+
+Attack rate describes the feeding rate at low resource density where handling time is negligible.
+
+A null model for attack rate can be thought of as encounter rate, which is proportional to the area or volume searched per unit time, assuming the resource doesn't move.
+
+The area searched is a combination of the speed of the consumer $i$ which is though to scale with a $1/4$ exponent to body mass, as well as the visually searched area for consumer $i$ which is thought to scale with the $1/3$ exponent of body mass in 2D space, and $2/3$ in 3D space. As such the encounter rate should scale with consumer $i$ mass with $1/4 + 1/3 = 0.58$ in 2D space, and $1/4 + 2/3 = 0.92$ in 3D space.
+
+Lastly, the visibility of a resource $i$ should scale with the body size of the resource, and is though tto do so with an exponent of $1/3$ in 2D space, and $2/3$ in 3D space.
+
+The final equation for attack rate $a_{ij}$ in 2D space is therefore:
+$$
+a_{ij} = a_0 \times m_{i}^{0.58} \times m_{j}^{0.33}
+$$
+And in 3D space is:
+$$
+a_{ij} = a_0 \times m_{i}^{0.92} \times m_{j}^{0.66}
+$$
+
+Where $a_0$ is a constant.
+
+Plotting for 2D space looks as follows @fig-aij:
+
+```{r, fig.width=12,fig.height=5}
+#| label: fig-aij
+#| fig-cap: Relationship between attack rate and body mass of consumer i and body mass of consumer j in 2D space. Attack rate increases with consumer and resource mass. Columns are changes to the constant a0
+#| warning: false
+masses = seq(1, 10, by = 0.1)
+a0 = c(0.1, 0.5, 0.9)
+
+aij = expand.grid(masses, masses, a0) %>%
+    rename("Mi" = 1, "Mj" = 2, "a0" = 3) %>%
+    mutate(aij = a0*(Mi^0.58)*(Mj^0.33))
+
+ggplot(aij, aes(Mi, Mj, fill = aij)) +
+    geom_tile() +
+    facet_rep_wrap(. ~ a0) +
+    theme_classic() +
+    scale_fill_viridis_c() +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Attack\nRate (s-1))") +
+    theme(text = element_text(size = 25)) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0)) 
+
+```
+
+# Temperature Dependence
+Biological rates also depend on tempature as with all chemical reactions.
+
+Metabolic Theory of Ecology extends the allometric description usig the Arrhenius temperature dependence such that:
+
+$$
+I = I_{0} \times m^{0.75} \times e^{\frac{E_{I} \times (T - T_{0})}
+{k \times T \times T_{0}}}
+$$
+
+Where $E_{I}(eV)$ is the activation energy descriing the exponential increase in metabolism with temperature.
+
+Whilst $k(eV K^{-1})$ is the Boltzmann constant, and $T(k)$ is the absolute temperature and $T_0$ sets the intercept of the temperature relationship at $T_0$ rather than at 0 Kelvin.
+
+We can apply this relationship to the attack rate and handling time equations, which just means multiplying the functions we alreayd had by Arrhenius function described above.
+
+So handling time becomes:
+$$
+h_{ij} = h_{0} \times m_{i}^{-0.66 to 1} \times m_{j}^{0 to 1} \times e^{\frac{E_{b} \times (T - T_{0})}
+{k \times T \times T_{0}}}
+$$
+
+And attack rate becomes:
+
+$$
+a_{ij} = a_0 \times m_{i}^{0.58} \times m_{j}^{0.33} \times e^{\frac{E_{b} \times (T - T_{0})}{k \times T \times T_{0}}}
+$$
+
+Where $E_a$ and $E_b$ are activation energies which are though to be between 0.6 - 0.7 eV, and often taken as the average 0.65 eV in many studies for attack rate.
+
+# Data Analysis (Rall et al, 2012)
+
+Rall et al, 2012 conducted a meta analysis of many studies that looked at how body size and temperature affect attack rate and handling time, to determine actual constants and exponents for terms such as $a_0$ and $h_0$.
+

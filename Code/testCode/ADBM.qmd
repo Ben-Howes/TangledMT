@@ -1,0 +1,348 @@
+---
+title: "Allometric Diet Breadth Model"
+author: "Benjamin Howes"
+date: "05/12/2023"
+format: 
+  html:
+    df-print: kable
+    code-fold: true
+    code-tools: true
+    toc: true
+    toc-depth: 2
+    toc-location: left
+---
+
+# ADBM
+This document focuses on explaining the ADBM, as well as showing examples of functions and food webs created using it.
+Through the document $M_i$ refers to the resource, whilst $M_j$ refers to the consumer.
+
+The ADBM looks to optimise the below function, so as to keep $k$ number of $j$ resources, decreasing from the most profitable.
+
+The function is as follows:
+
+$$
+\frac{\sum\limits_{j=1}^{k}{\lambda_{ij} \times E_j}}{1 + \sum\limits_{j=1}^{k}{\lambda_{ij} \times H_{ij}}}
+$$
+
+Where $\lambda_{ij}$ is the encounter rate of consumer $i$ with resource $j$, $E_j$ is the energy gained from consuming resource $j$, and $H_{ij}$ is the handling time of consumer $i$ on resource $j$.
+
+We now look through each of these parameters individually.
+
+## Handling Time
+Handling time is the time it takes for consumer $i$ to fight, subdue, ingest, and digest a resource item $j$.
+
+Handling time is defined in ADBM as:
+
+$$
+H_{ij} = \frac{h}{b - \frac{M_j}{M_i}} \text{ if } \frac{M_j}{M_i} \textless \text{ b } \text{  or  } H_{ij} = \infty \text{ if } \frac{M_j}{M_i} \geq \text{ b } 
+$$
+
+So basically if the ratio $\frac{M_j}{M_i}$ is greater than the constant b then handling tiem is infinite and the consumer $i$ cannot eat resource $j$.
+
+In this equation b is a constant and so is h. h is usually set as 1, but b has been shown to be very important to the final result of the ADBM food web, and can be shown through parameter optimisation (if you have a web to copy), or from meta-analysis.
+
+```{r}
+#| warning: false
+###########################################
+## Create functions for ADBM from
+## Petchley 2008
+###########################################
+
+library(tidyverse)
+library(viridis)
+library(lemon)
+
+set.seed(123)
+
+## Mi is the resource
+## Mj is the consumer
+
+## All constants used are taken from the MS where they use different parameters per food web
+## I set this data to the Coachella dataset which is one of the terrestrial datasets whcih was predicted best by the ADBM
+## e, h, and n are all arbitrarily set in the MS to 1, and here as well
+
+###########################################
+## Handling time function
+###########################################
+## Handling time will always be Inf if (Mi/Mj) >= b
+
+handlingTime = function(Mj, Mi, b = 1, h = 1) {
+    if((Mj/Mi) < b) {
+        H = (h/(b - (Mj/Mi)))
+    } else {
+        H = NA
+    }
+
+    return(H)
+}
+
+## Vectorize for use in mutate
+handlingTime = Vectorize(handlingTime)
+
+## Create data frame of masses to see relationship
+masses = seq(1,100,by=1)
+b0 = c(3.83e-1)
+masses = expand.grid(masses, masses, b0) %>% rename("Mj" = 1, "Mi" = 2, "b0" = 3)
+
+allDat = masses %>% mutate(H = handlingTime(Mj, Mi, b = b0))
+```
+
+Plot of how handling time varies with the mass of consumer $i$, resource $j$ and constant b.
+
+```{r, fig.width=15,fig.height=8}
+#| label: fig-hij
+#| fig-cap: Relationship between handling time, mass of consumer i and mass of resource j. Columns are changes to the constant b. We can see the handling times are highest for small consumers eating large resources, which makes sense.
+#| warning: false
+ggplot(allDat, aes(Mi, Mj, fill = log(H))) +
+    geom_raster() +
+    theme_classic() +
+    scale_fill_viridis_c(na.value = "transparent") +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Log Handling\nTime") +
+    theme(text = element_text(size = 25)) +
+    facet_rep_wrap(. ~ b0) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0))
+
+```
+
+## Resource Density 
+Resource density is the density of resource $j$ in either the area if working in 2D, or volume if working in 3D. In this case we have to estimate density based on allometric relationships, but for us in the Tangled Nature Model we can just use the true abundance of the resources.
+
+$$
+N_i = n \times M_{i}^{-0.75}
+$$
+
+Where n is set to 1.
+
+```{r}
+#| warning: false
+###########################################
+## Resource Density Function
+###########################################
+
+## Constants
+n = 1
+ni = -0.75
+
+resourceDensity = function(Mj) {
+    N = n*(Mj^ni)
+    return(N)
+}
+
+allDat = allDat %>% mutate(N = resourceDensity(Mj))
+```
+
+```{r, fig.width=15,fig.height=8}
+#| label: fig-Nj
+#| fig-cap: Relationship between resource mass and density, based on -0.75 exponent on mass.
+#| warning: false
+ggplot(allDat, aes(Mj, N)) +
+    geom_line(linewidth = 2) +
+    theme_classic() +
+    labs(x = "Resource Mass", y = "Resource Density") +
+    theme(text = element_text(size = 25))  
+```
+
+## Energy Content
+We have to ascertain how much off the resource $j$ mass will actually be converted to energy. For now and in the ADBM original paper this is just set to 1, but in other papers I have seen differences between grazers and carnivores for instance which we could implement.
+
+$$
+E_i = e \times M_j
+$$
+
+```{r}
+###########################################
+## Energy Content Function
+###########################################
+
+## Constants
+## In Jonathan Thesis he uses e = 0.2 for grazing, and e = 0.5 for consumers
+e = 1
+
+energyContent = function(Mj) {
+    E = e*(Mj)
+    return(E)
+}
+
+allDat = allDat %>% mutate(E = energyContent(Mj))
+```
+
+```{r, fig.width=15,fig.height=8}
+#| label: fig-Ej
+#| fig-cap: Relationship between resource mass and density, based on -0.75 exponent on mass.
+#| warning: false
+ggplot(allDat, aes(Mj, E)) +
+    geom_line(linewidth = 2) +
+    theme_classic() +
+    labs(x = "Resource Mass", y = "Energy Content") +
+    theme(text = element_text(size = 25))  
+```
+
+
+## Attack Rate
+
+Attack rate is the rate of successful attacks from consumer $i$ on resource $j$, including processes such as searching, detection, encounter and success of the attack itself.
+
+It is written as follows:
+
+$$
+A_i = a \times M_{i}^{ai} \times M_{j}^{aj}
+$$
+
+Where $a$ is a normalising constant, and $ai$ and $aj$ are exponents. These exponents are parameterised by optimisation in the ADBM study, but in other studies they have been calculated or theoretically hypotheised, e.g in Rall et al 2012, they were 0.58 and 0.33 respectively in 2D space.
+
+```{r}
+###########################################
+## Attack Rate Function
+###########################################
+
+## Constants
+a = 1.2e-5
+ai = -3.67e-1
+aj = -7.67e-1
+
+attackRate = function(Mj, Mi) {
+    A = a*(Mj^aj)*(Mi^ai)
+    return(A)
+}
+
+allDat = allDat %>% mutate(A = attackRate(Mj, Mi))
+```
+
+```{r, fig.width=10,fig.height=10}
+#| label: fig-Aij
+#| fig-cap: Relationship between consumer mass, resource mass, and attack rate. We see the attack rate increases with both the mass of consumer and the mass of the resource.
+#| warning: false
+ggplot(allDat, aes(Mi, Mj, fill = A)) +
+    geom_raster() +
+    theme_classic() +
+    scale_fill_viridis_c() +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Attack\nRate") +
+    theme(text = element_text(size = 25)) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0))
+```
+
+## Encunter Rate
+
+Encounter rate is the product of attack rate and density.
+
+$$
+\lambda_{ij} = A_{ij} \times N_j
+$$
+
+```{r}
+###########################################
+## Encounter Rate Function
+###########################################
+
+## Encounter rate is just the product of attack rate and density
+encounterRate = function(Mj, Mi) {
+    Y = resourceDensity(Mj)*attackRate(Mj, Mi)
+    return(Y)
+}
+
+allDat = allDat %>% mutate(Y = encounterRate(Mj, Mi))
+``` 
+
+```{r, fig.width=10,fig.height=10}
+#| label: fig-Yij
+#| fig-cap: Relationship between consumer mass, resource mass, and encounter rate. We see the encounter rate increases with consumer mass, but decreases with resource mass
+ggplot(allDat, aes(Mi, Mj, fill = log(Y))) +
+    geom_raster() +
+    theme_classic() +
+    scale_fill_viridis_c() +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Log Encounter\nRate") +
+    theme(text = element_text(size = 25)) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0))
+```
+
+## Profitability
+The ADBM uses a measure of profitability $P_{ij} = \frac{E_{i}}{H_{ij}}$ to decide the order at which species should be added to the group put into the optimisation function, with the most profitable coming first.
+
+
+```{r}
+###########################################
+## Profitability Function
+###########################################
+
+## For each consumer J we can calculate the profitability of feeding on a resource I
+
+profitability = function(Mj, Mi, b) {
+    P = energyContent(Mj)/handlingTime(Mj, Mi, b = b)
+    return(P)
+}
+
+allDat = allDat %>% mutate(P = profitability(Mj, Mi, b = b0))
+``` 
+```{r, fig.width=10,fig.height=10}
+#| label: fig-Pij
+#| fig-cap: Relationship between consumer mass, resource mass, and profitability.
+ggplot(allDat, aes(Mi, Mj, fill = P)) +
+    facet_rep_wrap(. ~ b0) +
+    geom_raster() +
+    theme_classic() +
+    scale_fill_viridis_c(na.value = "transparent") +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Profitability") +
+    theme(text = element_text(size = 25)) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0))
+```
+
+## Optimal Foraging
+
+```{r}
+###########################################
+## Optimal Foraging Function
+###########################################
+
+## The final model combines all functions to predict the
+## optimal diet k of each consumer J that maximises energy intake
+## We start by ranking resources I by profitability for consumer J in decreasing order
+## Then we add decreasingly less profitable resources I to our optimsation function
+## Until our optimal foragning value begins to decrease
+
+optimalForaging = function(dat) {
+
+## Calculate Profitability
+dat = dat %>% mutate(P = profitability(Mj, Mi, b = b0))
+
+## Rank by Profitability P
+dat = dat %>% arrange(-P)
+
+    OF = 0
+    optimalForaging = NULL
+    for(x in 1:nrow(dat)) {
+        OFnew = sum(encounterRate(dat$Mj[1:x], dat$Mi[1:x])*energyContent(dat$Mj[1:x]))/(1+sum(encounterRate(dat$Mj[1:x], dat$Mi[1:x])*handlingTime(dat$Mj[1:x], dat$Mi[1:x], b = dat$b0[1:x])))
+        if(is.na(OFnew)){break} 
+        else if(OFnew > OF) {
+            OF = OFnew
+            optimalForaging = bind_rows(optimalForaging, 
+            add_column(dat[x,], F = sum(encounterRate(dat$Mj[x], dat$Mi[x])*energyContent(dat$Mj[x]))/(1+sum(encounterRate(dat$Mj[x], dat$Mi[x])*handlingTime(dat$Mj[x], dat$Mi[x], b = dat$b0[1:x]))),
+            OF)) } else {
+                break
+                }
+    }
+
+    return(optimalForaging)
+}
+
+## Calculate optimal diet for all consumers in our allDat data frame
+splitDat = allDat %>% group_split(Mi, b0)
+optimalForagingSets = lapply(splitDat, optimalForaging) %>% bind_rows()
+``` 
+
+```{r, fig.width=10,fig.height=10}
+#| label: fig-OFij
+#| fig-cap: Relationship between consumer mass, resource mass, and Energy Intake.
+ggplot(optimalForagingSets, aes(Mi, Mj, fill = F)) +
+    facet_rep_wrap(. ~ b0) +
+    geom_raster() +
+    theme_classic() +
+    scale_fill_viridis_c(na.value = "transparent") +
+    labs(x = "Consumer Mass", y = "Resource Mass", fill = "Rate of\nEnergy Intake") +
+    theme(text = element_text(size = 25)) +
+    scale_y_continuous(expand = c(0,0)) +
+    scale_x_continuous(expand = c(0,0))
+```
