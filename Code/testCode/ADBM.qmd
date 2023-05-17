@@ -209,7 +209,7 @@ attackRate = function(Mj, Mi) {
 allDat = allDat %>% mutate(A = attackRate(Mj, Mi))
 ```
 
-```{r, fig.width=10,fig.height=10}
+```{r, fig.width=10,fig.height=8}
 #| label: fig-Aij
 #| fig-cap: Relationship between consumer mass, resource mass, and attack rate. We see the attack rate increases with both the mass of consumer and the mass of the resource.
 #| warning: false
@@ -245,7 +245,7 @@ encounterRate = function(Mj, Mi) {
 allDat = allDat %>% mutate(Y = encounterRate(Mj, Mi))
 ``` 
 
-```{r, fig.width=10,fig.height=10}
+```{r, fig.width=10,fig.height=8}
 #| label: fig-Yij
 #| fig-cap: Relationship between consumer mass, resource mass, and encounter rate. We see the encounter rate increases with consumer mass, but decreases with resource mass
 ggplot(allDat, aes(Mi, Mj, fill = log(Y))) +
@@ -276,7 +276,7 @@ profitability = function(Mj, Mi, b) {
 
 allDat = allDat %>% mutate(P = profitability(Mj, Mi, b = b0))
 ``` 
-```{r, fig.width=10,fig.height=10}
+```{r, fig.width=10,fig.height=8}
 #| label: fig-Pij
 #| fig-cap: Relationship between consumer mass, resource mass, and profitability.
 ggplot(allDat, aes(Mi, Mj, fill = P)) +
@@ -333,7 +333,7 @@ splitDat = allDat %>% group_split(Mi, b0)
 optimalForagingSets = lapply(splitDat, optimalForaging) %>% bind_rows()
 ``` 
 
-```{r, fig.width=10,fig.height=10}
+```{r, fig.width=10,fig.height=8}
 #| label: fig-OFij
 #| fig-cap: Relationship between consumer mass, resource mass, and Energy Intake.
 ggplot(optimalForagingSets, aes(Mi, Mj, fill = F)) +
