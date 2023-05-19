@@ -59,7 +59,7 @@ static double disp[numSpec];                       // Stores dispersal ability f
 int totalPop = 0;                           // Stores the total population across all cells in the model at a given generation.
 int cellPop[numCells];                      // Stores the total population in each cell at a given generation.
 vector <int> totalPopSpec[2];                      // Stores the total population of each species at a given generation.
-int cellPopSpec[numCells][numSpec];             // Stores the total population of each species in each cell at a given generation.
+vector <int> cellPopSpec[3];             // Stores the total population of each species in each cell at a given generation.
 int totalRich = 0;                          // Stores the total species richness of the model at a given generation.
 int cellRich[numCells];                     // Stores the species richness of a specific cell at a given generation.
 int cellList[numCells][2];                     // Lists numbers of cell (e,g with 6 cells it would read, 0,1,2,3,4,5), and whether they are non-forest or forest (0 = non-forest, 1 = forest).
@@ -75,13 +75,15 @@ int tmax = 50;                              // Number of times each dynamic coul
 
 static const double two_pi  = 2.0*3.141592653;
 
-void initialisePop(vector <int>(&totalPopSpec)[2], int (&cellPopSpec)[numCells][numSpec], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], 
+void initialisePop(vector <int> (&totalPopSpec)[2], vector <int> (&cellPopSpec)[3], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], 
     int &totalRich, int numSpec, int numCells, mt19937& eng);
 int chooseInRange(int a, int b, mt19937& eng);
-void kill(vector <int> (&totalPopSpec)[2], int (&cellPopSpec)[numCells][numSpec], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], int &totalRich,
-double prob, int cell, int numSpec, mt19937& eng);
-int randomInd(int (&cellPopSpec)[numCells][numSpec], int (&cellPop)[numCells], int numSpec, int cell, mt19937& eng);
+// void kill(vector <int> (&totalPopSpec)[2], int (&cellPopSpec)[numCells][numSpec], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], int &totalRich,
+// double prob, int cell, int numSpec, mt19937& eng);
+// int randomInd(int (&cellPopSpec)[numCells][numSpec], int (&cellPop)[numCells], int numSpec, int cell, mt19937& eng);
 double uniform(mt19937& eng);
+void addSpecies(vector <int> cellPopSpec[3], int cell, int chosenInd);
+void removeSpecies(vector <int> cellPopSpec[3], int cell, int chosenInd);
 
 int main(int argc, char *argv[]) {
 
@@ -92,20 +94,19 @@ for (int i = 0; i < 2; i++) {totalPopSpec[i].resize(0);}
 
 // Initialise population and store the initial population to file
     initialisePop(totalPopSpec, cellPopSpec, totalPop, cellPop, cellRich, totalRich, numSpec, numCells, eng);
-    for (int cell = 0; cell < 121; cell++){
-        for (int i = 0; i < 720; i++) {
-            kill(totalPopSpec, cellPopSpec, totalPop, cellPop,  cellRich, totalRich, probDeath, cell, numSpec, eng);
-        }
-    }
+    // for (int cell = 0; cell < 121; cell++){
+    //     for (int i = 0; i < 720; i++) {
+    //         // kill(totalPopSpec, cellPopSpec, totalPop, cellPop,  cellRich, totalRich, probDeath, cell, numSpec, eng);
+    //     }
+    // }
     
 
-
     ofstream out;
-    out.open("totalPopSpec.txt");
+    out.open("cellPopSpec.txt");
 
-    for (int i = 0; i < totalPopSpec[0].size(); i++) {
-        for (int j = 0; j < 2; j++) {
-            out << totalPopSpec[j][i] << " ";
+    for (int i = 0; i < cellPopSpec[0].size(); i++) {
+        for (int j = 0; j < 3; j++) {
+            out << cellPopSpec[j][i] << " ";
         }
         out << endl;
     }
@@ -120,8 +121,7 @@ int chooseInRange(int a, int b, mt19937& eng) {
     return choose(eng);
 }
 
-
-void initialisePop(vector <int> (&totalPopSpec)[2], int (&cellPopSpec)[numCells][numSpec], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], 
+void initialisePop(vector <int> (&totalPopSpec)[2], vector <int> (&cellPopSpec)[3], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], 
     int &totalRich, int numSpec, int numCells, mt19937& eng) {
 
     int chosenSpec;
@@ -131,6 +131,20 @@ void initialisePop(vector <int> (&totalPopSpec)[2], int (&cellPopSpec)[numCells]
         for (int j = 0; j < initPop; j++) {
             exists = false;
             chosenSpec = chooseInRange(0, numSpec-1, eng); 
+            // addSpecies(cellPopSpec, i, chosenSpec);
+            for (int k = 0; k < cellPopSpec[0].size(); k++) {
+                if(cellPopSpec[0][k] == i & cellPopSpec [1][k] == chosenSpec) {
+                    cellPopSpec[2][k] += 1;
+                    exists = true; 
+                    break;
+                }
+            }
+            if(exists == false) {
+                cellPopSpec[0].push_back(i);
+                cellPopSpec[1].push_back(chosenSpec);
+                cellPopSpec[2].push_back(1);
+            }
+            exists = false;
             for (int i = 0; i < totalPopSpec[0].size(); i++) {
                 if(totalPopSpec[0][i] == chosenSpec) {
                     totalPopSpec[1][i] += 1;
@@ -139,66 +153,99 @@ void initialisePop(vector <int> (&totalPopSpec)[2], int (&cellPopSpec)[numCells]
             if(exists == false) {
                 totalPopSpec[0].push_back(chosenSpec);
                 totalPopSpec[1].push_back(1);
+                totalRich++;
             }
 
-            if(cellPopSpec[i][chosenSpec] == 0) {cellRich[i]++;}
-            cellPopSpec[i][chosenSpec]++;
+            // if(cellPopSpec[i][chosenSpec] == 0) {cellRich[i]++;}
+            // cellPopSpec[i][chosenSpec]++;
             totalPop++;
             cellPop[i]++;
         }
     }
 }
 
-
-void kill(vector <int> (&totalPopSpec)[2], int (&cellPopSpec)[numCells][numSpec], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], int &totalRich,
-double prob, int cell, int numSpec, mt19937& eng) {
+// void kill(vector <int> (&totalPopSpec)[2], vector <int> (&cellPopSpec)[3], int &totalPop, int (&cellPop)[numCells],  int (&cellRich)[numCells], int &totalRich,
+// double prob, int cell, int numSpec, mt19937& eng) {
     
-    if(cellPop[cell] > 0){ 
+//     if(cellPop[cell] > 0){ 
 
-    int chosenInd;
+//     int chosenInd;
 
-        if (uniform(eng) <= prob) {
-            chosenInd = randomInd(cellPopSpec, cellPop, numSpec, cell, eng);
-            for (int i = 0; i < totalPopSpec[0].size(); i++){
-                if(totalPopSpec[0][i] == chosenInd) {
-                    if(totalPopSpec[1][i] == 1) {
-                            totalPopSpec[0].erase(totalPopSpec[0].begin() + i);
-                            totalPopSpec[1].erase(totalPopSpec[1].begin() + i);
-                            totalRich--; 
-                        } else {
-                        totalPopSpec[1][i] -= 1;
-                        break;
-                    }
-                }
-            }
+//         if (uniform(eng) <= prob) {
+//             chosenInd = randomInd(cellPopSpec, cellPop, numSpec, cell, eng);
+//             for (int i = 0; i < totalPopSpec[0].size(); i++){
+//                 if(totalPopSpec[0][i] == chosenInd) {
+//                     if(totalPopSpec[1][i] == 1) {
+//                             totalPopSpec[0].erase(totalPopSpec[0].begin() + i);
+//                             totalPopSpec[1].erase(totalPopSpec[1].begin() + i);
+//                             totalRich--; 
+//                         } else {
+//                         totalPopSpec[1][i] -= 1;
+//                         break;
+//                     }
+//                 }
+//             }
             
-            if(cellPopSpec[cell][chosenInd] == 1) {cellRich[cell]--;}
-            if(cellPopSpec[cell][chosenInd] > 0) {cellPopSpec[cell][chosenInd]--;}
-            if(totalPop > 0) {totalPop--;}
-            if(cellPop[cell] > 0) {cellPop[cell]--;}
-        }
-    }
-}
+//             if(cellPopSpec[cell][chosenInd] == 1) {cellRich[cell]--;}
+//             if(cellPopSpec[cell][chosenInd] > 0) {cellPopSpec[cell][chosenInd]--;}
+//             if(totalPop > 0) {totalPop--;}
+//             if(cellPop[cell] > 0) {cellPop[cell]--;}
+//         }
+//     }
+// }
 
-// Choose a random individual (proportional to how many of that species there are)
-int randomInd(int (&cellPopSpec)[numCells][numSpec], int (&cellPop)[numCells], int numSpec, int cell, mt19937& eng) {
+// // Choose a random individual (proportional to how many of that species there are)
+// int randomInd(int (&cellPopSpec)[numCells][numSpec], int (&cellPop)[numCells], int numSpec, int cell, mt19937& eng) {
     
-    double sum, threshold;
-    sum = 0;
-    // Create threshold value by multiplying the total number of individuals in the cell by a number between 0-1
-    threshold = uniform(eng)*cellPop[cell];
+//     double sum, threshold;
+//     sum = 0;
+//     // Create threshold value by multiplying the total number of individuals in the cell by a number between 0-1
+//     threshold = uniform(eng)*cellPop[cell];
 
-    // Get an individual of a random species (proportional to how many of that species there are) by summing the number of individuals of each species in the cell
-    // and then choosing the species whose population get the sum to the threshold value
-    for (int i = 0; i < numSpec; i++) {
-        sum += cellPopSpec[cell][i];
-        if (sum > threshold) {return i;}
-    }
-    cout << "Threshold for randomInd not hit, this is likely causing huge errors in results" << "\n";
-    return 0;
-}
+//     // Get an individual of a random species (proportional to how many of that species there are) by summing the number of individuals of each species in the cell
+//     // and then choosing the species whose population get the sum to the threshold value
+//     for (int i = 0; i < numSpec; i++) {
+//         sum += cellPopSpec[cell][i];
+//         if (sum > threshold) {return i;}
+//     }
+//     cout << "Threshold for randomInd not hit, this is likely causing huge errors in results" << "\n";
+//     return 0;
+// }
 
 double uniform(mt19937& eng) {
     uniform_real_distribution<> rand(0, 1); // define the range [a,b], extremes included.
     return rand(eng);
+}
+
+
+void removeSpecies(vector <int> cellPopSpec[3], int cell, int chosenInd) {
+    for (int i = 0; i < cellPopSpec[0].size(); i++) {
+        if(cellPopSpec[0][i] == cell & cellPopSpec[1][i] == chosenInd) {
+            if(cellPopSpec[2][i] > 1) {
+                cellPopSpec[2][i] -= 1;
+                break;
+            } else if (cellPopSpec[2][i] == 1){
+                for (int j = 0; j < 3; j++) {cellPopSpec[j].erase(cellPopSpec[j].begin() + i);}
+                break;
+            }
+        }
+    }
+}
+
+ void addSpecies(vector <int> cellPopSpec[3], int cell, int chosenInd) {
+
+    bool exists = false;
+
+    for (int i = 0; i < cellPopSpec[0].size(); i++) {
+        if(cellPopSpec[0][i] == cell & cellPopSpec[1][i] == chosenInd) {
+            cellPopSpec[2][i] +=1;
+            exists = true;
+            break;
+        }
+    }
+    if(exists == false) {  
+        cellPopSpec[0].push_back(cell);
+        cellPopSpec[1].push_back(chosenInd);
+        cellPopSpec[2].push_back(1);
+    }
 }
