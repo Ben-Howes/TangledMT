@@ -40,6 +40,8 @@ vignettes/*.pdf
 
 # Data files
 Data/*
+Results/*
+Paper/*
 
 ## Remove HTML, CSS, JS and WOFF files
 **.html
