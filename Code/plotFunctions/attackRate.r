@@ -9,7 +9,7 @@ setwd(gpath)
 
 Rp = 0.1
 
-masses = 1:100
+masses = seq(log10(1.1), log10(1000000), length.out = 100)
 masses = expand.grid(masses, masses) %>%
     rename("mi" = 1, "mj" = 2)
 
@@ -27,7 +27,7 @@ ggplot(masses, aes(mj,mi, fill = Aij)) +
     geom_raster() +
     theme_classic() +
     scale_fill_viridis_c() +
-    labs(x = "Mass of Consumer", y = "Mass of Resource", fill = "Attack Probability") +
+    labs(x = "Log10 (Body Mass of Consumer)", y = "Log10 (Body Mass of Resource)", fill = "Attack Probability") +
     theme(text = element_text(size = 30)) +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0)) +
