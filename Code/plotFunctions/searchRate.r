@@ -12,13 +12,13 @@ Pv = 0.21
 D0 = 1.62
 Pd = 0.21
 
-masses = 1:100
+masses = seq(log10(1.1), log10(1000000), length.out = 100)
 masses = expand.grid(masses, masses) %>%
     rename("mi" = 1, "mj" = 2)
 
 calculateSearchRate = function(mi, mj) {
 
-    aij = 2*(V0)*(D0)*(mj^(Pv + Pd - 1))*(mi^(Pd))
+    aij = 2*(V0)*(D0)*(mj^(Pv + Pd))*(mi^(Pd))
 
     return(aij)
 
@@ -30,7 +30,7 @@ ggplot(masses, aes(mj,mi, fill = aij)) +
     geom_raster() +
     theme_classic() +
     scale_fill_viridis_c() +
-    labs(x = "Mass of Consumer", y = "Mass of Resource", fill = "Search Rate") +
+    labs(x = "Log10 (Body Mass of Consumer)", y = "Log10 (Body Mass of Resource)", fill = "Search Rate") +
     theme(text = element_text(size = 30)) +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0)) +
