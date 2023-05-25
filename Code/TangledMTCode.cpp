@@ -33,7 +33,7 @@ double distArray[numCells][numCells];       // Distance from each cell to every 
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
-const int numGenPre = 10000;                 // Number of generations to run the model pre fragmentation. Each generation is broken into time steps.
+const int numGenPre = 100;                 // Number of generations to run the model pre fragmentation. Each generation is broken into time steps.
 const int numGenPost = 10000;                //2000 Number of generations to run the model after fragmentation. Each generation is broken into time steps.
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
@@ -46,6 +46,11 @@ double dispDist = 1;                         // Store dispersal distance
 
 int weightInt = 5;                         // Weighting of importance of interactions. Higher value puts more importance on interactions in calculating probability of offspring.
 
+// Metabolic theory variables
+double ppProb = 0.25;                       // Sets proportion of species that are primary producers
+double Temp = 300;                          // Set temperature in kelvin (273.15 kelvin = 0 celsius)
+double k = 1.380649*(10^-23);               // Boltzmann constant
+
 ///////////////////////
 // Define Variables //
 //////////////////////
@@ -54,7 +59,7 @@ int weightInt = 5;                         // Weighting of importance of interac
 
 int totalGen = numGenPre + numGenPost;      // Total generations the model will run for.
 static double J[numSpec][numSpec];                 // J-matrix which includes interactions between all species, with number of rows and cols equal to number of species. 
-static double M[numSpec];                        // Stores body mass of species
+static double Traits[numSpec][2];                        // Stores traits of species, mass, primary producer etc
 static double disp[numSpec];                       // Stores dispersal ability for each species.
 int totalPop = 0;                           // Stores the total population across all cells in the model at a given generation.
 vector <int> cellPop[2];                    // Stores the total population in each cell at a given generation.
@@ -79,7 +84,7 @@ static const double two_pi  = 2.0*3.141592653;
 //////////////////////////
 
 void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng);
-void createM(double (&M)[numSpec], mt19937& eng);
+void createTraits(double (&Traits)[numSpec][2], mt19937& eng, double ppProb);
 void createDisp(double (&disp)[numSpec]);
 double uniform(mt19937& eng);
 double gaussian(mt19937& eng);
@@ -298,7 +303,7 @@ int main(int argc, char *argv[]) {
     if(fragmentation == 1) {
 
         read2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        readArray<double>(M, numSpec, "/M.txt", outpath);
+        read2DArray<double, 2>(Traits, 2, numSpec, "/Traits.txt", outpath);
         readArray<double>(disp, numSpec, "/disp.txt", outpath);
 
         // Read in predefined landscape with 1s for forest cells and 0 for non-forest cells
@@ -324,8 +329,8 @@ int main(int argc, char *argv[]) {
         // Create and store species traits
         createJMatrix(J, probInt, eng);
         store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        createM(M, eng);
-        storeArray<double>(M, numSpec, "/M.txt", outpath);
+        createTraits(Traits, eng, ppProb);
+        store2DArray<double, 2>(Traits, 2, numSpec, "/Traits.txt", outpath);
         createDisp(disp);
         storeArray<double>(disp, numSpec, "/disp.txt", outpath);
         storeParam("/Parameters.txt", outpath);
@@ -791,9 +796,10 @@ void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng) 
     }
 } 
 
-void createM(double (&M)[numSpec], mt19937& eng) {
+void createTraits(double (&Traits)[numSpec][2], mt19937& eng, double ppProb) {
     for (int i = 0; i < numSpec; i++) {
-        M[i] = uniform(eng);
+        Traits[i][0] = abs(gaussian(eng)*1000);
+        if(ppProb < uniform(eng)) {Traits[i][1] = 1;} else {Traits[i][1] = 0;};
     }
 }
 
