@@ -33,8 +33,7 @@ double distArray[numCells][numCells];       // Distance from each cell to every 
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
-const int numGenPre = 100;                 // Number of generations to run the model pre fragmentation. Each generation is broken into time steps.
-const int numGenPost = 10000;                //2000 Number of generations to run the model after fragmentation. Each generation is broken into time steps.
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -57,7 +56,6 @@ double k = 1.380649*(10^-23);               // Boltzmann constant
 
 // These variables should not be changed unless the model itself is being edited
 
-int totalGen = numGenPre + numGenPost;      // Total generations the model will run for.
 static double J[numSpec][numSpec];                 // J-matrix which includes interactions between all species, with number of rows and cols equal to number of species. 
 static double Traits[numSpec][2];                        // Stores traits of species, mass, primary producer etc
 static double disp[numSpec];                       // Stores dispersal ability for each species.
@@ -75,8 +73,6 @@ int seed;
 int immNum = 0;                                 // Counts number of immigrations that occur
 int dispNum = 0;                                // Counts number of dispersals that occur
 
-int tmax = 50;                              // Number of times each dynamic could happen per cell per generation (e.g probDeath could happen 50 times per cell per gen).
-
 static const double two_pi  = 2.0*3.141592653;
 
 //////////////////////////
@@ -93,7 +89,7 @@ int chooseInRange(int a, int b, mt19937& eng);
 void immigration(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, int &immNum, mt19937& eng);
 void kill(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, mt19937& eng);
 void reproduction(vector <int> (&cellPopSpec)[numCells][2], int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSpec, int Rfr, mt19937& eng);
-double calculateInteractions(double (&J)[numSpec][numSpec], vector <int> (&cellPopSpec)[numCells][2], int cell, int numSpec, int ind);
+double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&Traits)[numSpec][2], int cell, int numSpec, int ind);
 void shuffle(int arr[], int arrElements, mt19937& eng);
 int randomInd(vector <int> (&cellPopSpec)[numCells][2], int pop, int numSpec, int cell, mt19937& eng);
 void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int numCells);
@@ -116,6 +112,12 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen);
 void calculateTotalPopSpec(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&totalPopSpec)[2]);
 void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&cellPop)[2]);
 int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
+
+// Metabolic Theory Functions
+double searchRate(int Si, int Sj, double T, double (&Traits)[numSpec][2]);
+double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
+double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]);
+double consumptionRate(int Si, int Sj, double T, double (&Traits)[numSpec][2], int Nj);
 
 ///////////////////////////////
 //          Templates        //
@@ -327,8 +329,8 @@ int main(int argc, char *argv[]) {
     } else {
 
         // Create and store species traits
-        createJMatrix(J, probInt, eng);
-        store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
+        // createJMatrix(J, probInt, eng);
+        // store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
         createTraits(Traits, eng, ppProb);
         store2DArray<double, 2>(Traits, 2, numSpec, "/Traits.txt", outpath);
         createDisp(disp);
@@ -377,33 +379,26 @@ int main(int argc, char *argv[]) {
     ofstream s_cellPopSpec;
     s_cellPopSpec.open(respath + "/cellPopSpec.txt");
     
-    // Is the number of generations for before fragmentation or after fragmentation?
-    int numGen;
-    if(fragmentation == 0) {numGen = numGenPre;} else {numGen = numGenPost;}
-
     // Start model dynamics
-    for (int i = 0; i < numGen; i++) {
-        // Each dynamic happens tmax times per generation per cell (tmax = 50)
-        for (int t = 0; t < tmax; t++) {
-            shuffle(cellOrder, numCells, eng);
-            //Loop through each cell of the landscape
-            for (int j = 0; j < numCells; j++) {
-                int cell = cellOrder[j];
-                kill(cellPopSpec, probDeath, cell, numSpec, eng);
-                reproduction(cellPopSpec, cellList, J, cell, numSpec, Rfr, eng);
-                probDispDen = dispersalProb(cellPopSpec, Rfr, cell, probDeath, probDisp);
-                dispersal(cellPopSpec, distArray, disp, probDispDen, cell, numSpec, dispNum, eng);
-                if(fragmentation == 0) {
-                    immigration(cellPopSpec, probImm, cell, numSpec, immNum, eng);
-                } else {
-                    immigration(cellPopSpec, probImmFrag, j, numSpec, immNum, eng);
-                }
+    for (int i = 0; i < t; i++) {
+        shuffle(cellOrder, numCells, eng);
+        //Loop through each cell of the landscape
+        for (int j = 0; j < numCells; j++) {
+            int cell = cellOrder[j];
+            kill(cellPopSpec, probDeath, cell, numSpec, eng);
+            reproduction(cellPopSpec, cellList, J, cell, numSpec, Rfr, eng);
+            probDispDen = dispersalProb(cellPopSpec, Rfr, cell, probDeath, probDisp);
+            dispersal(cellPopSpec, distArray, disp, probDispDen, cell, numSpec, dispNum, eng);
+            if(fragmentation == 0) {
+                immigration(cellPopSpec, probImm, cell, numSpec, immNum, eng);
+            } else {
+                immigration(cellPopSpec, probImmFrag, j, numSpec, immNum, eng);
             }
         }
 
         // Calculate richness and abundance metrics
         // Dependent on how often you want to save them
-        if((i+1)%10 == 0) {
+        if((i+1)%1000 == 0) {
             calculateTotalPopSpec(cellPopSpec, totalPopSpec);
             totalPop = 0;
             for (int i = 0; i < totalPopSpec[0].size(); i++){totalPop += totalPopSpec[1][i];}
@@ -417,7 +412,7 @@ int main(int argc, char *argv[]) {
             storeCellPopSpec(s_cellPopSpec, cellPopSpec, i);
 
             //Live output to console
-            cout << "Gen: " << i + 1 << "/" << numGen << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
+            cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
 
         }
     }
@@ -644,15 +639,23 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
     }
 }
 
-double calculateInteractions(double (&J)[numSpec][numSpec], vector <int> (&cellPopSpec)[numCells][2], int cell, int numSpec, int ind) {
+double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&Traits)[numSpec][2], int cell, int numSpec, int ind) {
 
     double H;
-    H = 0; 
+    double N; // Store abundance of focal species
+    H = 0;
+    for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {if(cellPopSpec[cell][0][i] == ind){N = cellPopSpec[cell][1][i]; break;}}
 
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
-        // Find J matrix interaction between ind and the other species in the cell
+        // Calculate per-capita consumption rate of focal species with others in the cell
         // and multiply by the abundance of the other species
-        H += J[ind][cellPopSpec[cell][0][i]]*cellPopSpec[cell][1][i];
+        // Also do this for the focal species being consumed by the other species
+        // But first check they're not trying to eat or being eaten by their own species
+        if(cellPopSpec[cell][0][i] != ind) {
+            int Sj = cellPopSpec[cell][0][i];
+            H += cellPopSpec[cell][1][i]*consumptionRate(ind, Sj, 0, Traits, cellPopSpec[cell][1][i]);
+            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, 0, Traits, N);
+        }
     }
 
     return H;
@@ -670,7 +673,7 @@ int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSp
         double H, pOff;
 
         chosenInd = randomInd(cellPopSpec, pop, numSpec, cell, eng);
-        H = calculateInteractions(J, cellPopSpec, cell, numSpec, chosenInd);
+        H = calculateInteractions(cellPopSpec, Traits, cell, numSpec, chosenInd);
         H = (H*weightInt/pop) - (pop/Rfr); // 10 chosen as arbitrary carrying capactiy
         pOff = exp(H) / (1 + exp(H));
 
@@ -798,7 +801,7 @@ void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng) 
 
 void createTraits(double (&Traits)[numSpec][2], mt19937& eng, double ppProb) {
     for (int i = 0; i < numSpec; i++) {
-        Traits[i][0] = abs(gaussian(eng)*1000);
+        Traits[i][0] = abs(gaussian(eng)*1000000);
         if(ppProb < uniform(eng)) {Traits[i][1] = 1;} else {Traits[i][1] = 0;};
     }
 }
@@ -888,7 +891,58 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen) 
 
     for (int i = 0; i < numCells; i++) {
         for (int j = 0; j < vec[i][0].size(); j++) {
-            stream << gen+1 << " " << i+1 << " " << vec[i][0][j] + 1 << " " << vec[i][1][j] << "\n";
+            stream << gen+1 << " " << i+1 << " " << vec[i][0][j] + 1 << " " << vec[i][1][j] << " " << 
+            calculateInteractions(cellPopSpec, Traits, i, numSpec, vec[i][0][j]) << "\n";
         }
     }
+}
+
+// Metabolic Theory Functions
+double searchRate(int Si, int Sj, double T, double (&Traits)[numSpec][2]) {
+    
+    double V0 = 0.33; double d0 = 1.62; 
+    double Pv = 0.21; double Pd = 0.21;
+    double a; double Mi = Traits[Si][0];
+    double Mj = Traits[Sj][0];
+
+    a = 2*V0*d0*(pow(Mi, Pv + Pd))*(pow(Mj, Pd));
+
+    return a;
+    
+}
+
+double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]) {
+
+    double Rp = 0.1;
+    double Mi = Traits[Si][0];
+    double Mj = Traits[Sj][0];
+
+    double A = (1/(1 + 0.25*(pow(exp(1), -pow(Mi, 0.33)))))*pow(1/(1 + pow(log10(Rp*(Mi/Mj)), 2)),0.2);
+
+    return A;
+
+}
+
+double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]) {
+
+    double h0 = 1;
+    double Rp = 0.1;
+    double Mi = Traits[Si][0];
+    double Mj = Traits[Sj][0];
+
+    double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2));
+
+    std::cout << "Mi: " << Mi << " Mj:" << Mj << " Handling TIme:" << h << endl;
+
+    return h;
+
+}
+
+double consumptionRate(int Si, int Sj, double T, double (&Traits)[numSpec][2], int Nj) {
+
+    double c = (searchRate(Si, Sj, T, Traits)*attackProb(Si, Sj, Traits)*Nj)/
+    (1 + searchRate(Si, Sj, T, Traits)*attackProb(Si, Sj, Traits)*handlingTime(Si, Sj, T, Traits)*Nj);
+
+    return c;
+
 }

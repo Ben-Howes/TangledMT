@@ -9,9 +9,9 @@ setwd(gpath)
 
 H0 = 1
 B = 0.75
-Rp = 0.5
+Rp = 0.1
 a = 1
-c = 0.5
+c = 1
 
 masses = 1:100
 masses = expand.grid(masses, masses) %>%
@@ -19,7 +19,7 @@ masses = expand.grid(masses, masses) %>%
 
 calculateHandling = function(mi, mj) {
 
-    Hij = H0*(mj^(1-B))*(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2))
+    Hij = H0*(mj^(-B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))
 
     return(Hij)
 
