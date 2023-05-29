@@ -37,7 +37,7 @@ const int t = 1000000;                         // Number of time steps in the mo
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
-double probImm = 0.00001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
+double probImm = 0.0001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
 const float probInt = 0.5;                  // Fraction of non-zero interactions. Aka approximate fraction of interactions that will occur.
@@ -114,7 +114,7 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
 int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
 
 // Metabolic Theory Functions
-double searchRate(int Si, int Sj, double T, double (&Traits)[numSpec][2]);
+double searchRate(int Si, double T, double (&Traits)[numSpec][2]);
 double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
 double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]);
 double consumptionRate(int Si, int Sj, double T, double (&Traits)[numSpec][2], int Nj);
@@ -398,7 +398,7 @@ int main(int argc, char *argv[]) {
 
         // Calculate richness and abundance metrics
         // Dependent on how often you want to save them
-        if((i+1)%1000 == 0) {
+        if((i+1)%10000 == 0) {
             calculateTotalPopSpec(cellPopSpec, totalPopSpec);
             totalPop = 0;
             for (int i = 0; i < totalPopSpec[0].size(); i++){totalPop += totalPopSpec[1][i];}
@@ -673,8 +673,7 @@ int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSp
         double H, pOff;
 
         chosenInd = randomInd(cellPopSpec, pop, numSpec, cell, eng);
-        H = calculateInteractions(cellPopSpec, Traits, cell, numSpec, chosenInd);
-        H = (H*weightInt/pop) - (pop/Rfr); // 10 chosen as arbitrary carrying capactiy
+        H = calculateInteractions(cellPopSpec, Traits, cell, numSpec, chosenInd) - (pop/Rfr); // 10 chosen as arbitrary carrying capactiy
         pOff = exp(H) / (1 + exp(H));
 
         if (uniform(eng) <= pOff) {
@@ -800,8 +799,9 @@ void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng) 
 } 
 
 void createTraits(double (&Traits)[numSpec][2], mt19937& eng, double ppProb) {
+    std::lognormal_distribution<double> distribution(-6.0, 6.0);
     for (int i = 0; i < numSpec; i++) {
-        Traits[i][0] = abs(gaussian(eng)*1000000);
+        Traits[i][0] = distribution(eng);
         if(ppProb < uniform(eng)) {Traits[i][1] = 1;} else {Traits[i][1] = 0;};
     }
 }
@@ -897,15 +897,16 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen) 
     }
 }
 
+//////////
 // Metabolic Theory Functions
-double searchRate(int Si, int Sj, double T, double (&Traits)[numSpec][2]) {
+//////////
+
+double searchRate(int Si, double T, double (&Traits)[numSpec][2]) {
     
     double V0 = 0.33; double d0 = 1.62; 
-    double Pv = 0.21; double Pd = 0.21;
     double a; double Mi = Traits[Si][0];
-    double Mj = Traits[Sj][0];
 
-    a = 2*V0*d0*(pow(Mi, Pv + Pd))*(pow(Mj, Pd));
+    a = 2*V0*d0*(pow(Mi, 0.63));
 
     return a;
     
@@ -932,16 +933,14 @@ double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]) {
 
     double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2));
 
-    std::cout << "Mi: " << Mi << " Mj:" << Mj << " Handling TIme:" << h << endl;
-
     return h;
 
 }
 
 double consumptionRate(int Si, int Sj, double T, double (&Traits)[numSpec][2], int Nj) {
 
-    double c = (searchRate(Si, Sj, T, Traits)*attackProb(Si, Sj, Traits)*Nj)/
-    (1 + searchRate(Si, Sj, T, Traits)*attackProb(Si, Sj, Traits)*handlingTime(Si, Sj, T, Traits)*Nj);
+    double c = (searchRate(Si, T, Traits)*attackProb(Si, Sj, Traits)*Nj)/
+    (1 + searchRate(Si, T, Traits)*attackProb(Si, Sj, Traits)*handlingTime(Si, Sj, T, Traits)*Nj);
 
     return c;
 

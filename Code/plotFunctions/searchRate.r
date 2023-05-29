@@ -8,29 +8,26 @@ gpath = "/home/ben/Documents/TangledMT/Paper/Figures/"
 setwd(gpath)
 
 V0 = 0.33
-Pv = 0.21
 D0 = 1.62
-Pd = 0.21
 
-masses = seq(log10(1.1), log10(1000000), length.out = 100)
-masses = expand.grid(masses, masses) %>%
-    rename("mi" = 1, "mj" = 2)
+masses = data.frame(mi = seq(log10(1.1), log10(1000000), length.out = 100))
+masses = 10^masses
 
-calculateSearchRate = function(mi, mj) {
+calculateSearchRate = function(mi) {
 
-    aij = 2*(V0)*(D0)*(mj^(Pv + Pd))*(mi^(Pd))
+    aij = 2*(V0)*(D0)*(mi^(0.63))
 
     return(aij)
 
 }
 
-masses = masses %>% mutate(aij = calculateSearchRate(mi, mj))
+masses = masses %>% mutate(aij = calculateSearchRate(mi))
 
-ggplot(masses, aes(mj,mi, fill = aij)) +
-    geom_raster() +
+ggplot(masses, aes(log10(mi), log10(aij))) +
+    geom_line(linewidth = 2) +
     theme_classic() +
     scale_fill_viridis_c() +
-    labs(x = "Log10 (Body Mass of Consumer)", y = "Log10 (Body Mass of Resource)", fill = "Search Rate") +
+    labs(x = "Log10 (Body Mass of Consumer)", y = "Log10 (Search Rate)") +
     theme(text = element_text(size = 30)) +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0)) +

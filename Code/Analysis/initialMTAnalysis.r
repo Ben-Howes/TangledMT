@@ -5,7 +5,7 @@
 
 library(tidyverse)
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_5/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -35,8 +35,8 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)), aes(fct_rev(fct_reorder(a
     theme(text = element_text(size = 30),
     axis.text.x=element_blank()) +
     labs(x = "Body Mass", y = "Abundance") +
-    scale_y_continuous(expand = c(0, 0), limits = c(0, 2000)) +
-    geom_text(aes(label = round(M/1000)), position = position_dodge(width=0.9), vjust=-0.25, size = 5)
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 5500)) +
+    geom_text(aes(label = round(M, 3)), position = position_dodge(width=0.9), vjust=-0.25, size = 5)
 
 ### Change in mean mass over time, calculated as (mass*abundance)/abundance
 avgMass = totalPopSpec %>% 
@@ -44,10 +44,10 @@ avgMass = totalPopSpec %>%
     group_by(g) %>%
     summarise(avgM = sum(totalM)/sum(n))
 
-ggplot(avgMass, aes(g, avgM/1000)) + 
+ggplot(avgMass, aes(g, avgM)) + 
     geom_line() +
     theme_classic() +
-    labs(x = "Time", y = "Average Mass (kg)") +
+    labs(x = "Time", y = "Average Mass (g)") +
     theme(text = element_text(size = 30))
 
 
@@ -55,5 +55,5 @@ ggplot(avgMass, aes(g, avgM/1000)) +
 ## Join cellPopSpec with traits
 
 cellPopSpec = cellPopSpec %>% left_join(traits)
-test = cellPopSpec %>% filter(g == max(cellPopSpec$g) & c == 314)
+test = cellPopSpec %>% filter(g == max(cellPopSpec$g))
 test

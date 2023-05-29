@@ -13,13 +13,14 @@ Rp = 0.1
 a = 1
 c = 1
 
-masses = 1:100
+masses = seq(log10(0.00001), log10(1000000), length.out = 100)
+masses = 10^masses
 masses = expand.grid(masses, masses) %>%
     rename("mi" = 1, "mj" = 2)
 
 calculateHandling = function(mi, mj) {
 
-    Hij = H0*(mj^(-B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))
+    Hij = H0*(mi^(B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))
 
     return(Hij)
 
@@ -27,9 +28,9 @@ calculateHandling = function(mi, mj) {
 
 masses = masses %>% mutate(Hij = calculateHandling(mi, mj))
 
-ggplot(filter(masses, mj == 100), aes(mi, Hij)) + geom_line()
+ggplot(filter(masses, mi == max(masses$mi)), aes(mj, Hij)) + geom_line()
 
-ggplot(masses, aes(mj,mi, fill = Hij)) +
+ggplot(masses, aes(log10(mi),log10(mj), fill = log10(Hij))) +
     geom_raster() +
     theme_classic() +
     scale_fill_viridis_c() +
