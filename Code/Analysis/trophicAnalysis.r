@@ -5,12 +5,11 @@
 
 library(tidyverse)
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_3/Results/"
 setwd(gpath)
 
 totalPop = read_delim("totalPop.txt", col_names = FALSE) %>%
     rename(g = 1, n = 2)
-
 
 ggplot(totalPop, aes(g, n)) + 
     geom_line() +
