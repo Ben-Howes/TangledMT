@@ -24,8 +24,8 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 21;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 21;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 4;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 4;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 const int numCells = cellRows * cellCols;   // Sets the number of cells in the landscape (this needs to be created outside of this code, likely in R, with appropriate distances etc).
 int landscapeArray[cellCols][cellRows];     // Landscape array for filling with default values, or reading in from landscape created in .txt format.
 int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
@@ -40,7 +40,6 @@ const float probDeath = 0.15;               // Probability of individual dying i
 double probImm = 0.0001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
-const float probInt = 0.5;                  // Fraction of non-zero interactions. Aka approximate fraction of interactions that will occur.
 double dispDist = 1;                         // Store dispersal distance
 
 int weightInt = 5;                         // Weighting of importance of interactions. Higher value puts more importance on interactions in calculating probability of offspring.
@@ -57,7 +56,7 @@ double k = 1.380649*(10^-23);               // Boltzmann constant
 // These variables should not be changed unless the model itself is being edited
 
 static double J[numSpec][numSpec];                 // J-matrix which includes interactions between all species, with number of rows and cols equal to number of species. 
-static double Traits[numSpec][2];                        // Stores traits of species, mass, primary producer etc
+static double traits[numSpec][2];                        // Stores traits of species, mass, primary producer etc
 static double disp[numSpec];                       // Stores dispersal ability for each species.
 int totalPop = 0;                           // Stores the total population across all cells in the model at a given generation.
 vector <int> cellPop[2];                    // Stores the total population in each cell at a given generation.
@@ -80,7 +79,7 @@ static const double two_pi  = 2.0*3.141592653;
 //////////////////////////
 
 void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng);
-void createTraits(double (&Traits)[numSpec][2], mt19937& eng, double ppProb);
+void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProb);
 void createDisp(double (&disp)[numSpec]);
 double uniform(mt19937& eng);
 double gaussian(mt19937& eng);
@@ -88,8 +87,9 @@ void initialisePop(vector <int> (&cellPopSpec)[numCells][2], int numSpec, int nu
 int chooseInRange(int a, int b, mt19937& eng);
 void immigration(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, int &immNum, mt19937& eng);
 void kill(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, mt19937& eng);
-void reproduction(vector <int> (&cellPopSpec)[numCells][2], int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSpec, int Rfr, mt19937& eng);
-double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&Traits)[numSpec][2], int cell, int numSpec, int ind);
+void reproduction(vector <int> (&cellPopSpec)[numCells][2], 
+int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng);
+double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int ind);
 void shuffle(int arr[], int arrElements, mt19937& eng);
 int randomInd(vector <int> (&cellPopSpec)[numCells][2], int pop, int numSpec, int cell, mt19937& eng);
 void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int numCells);
@@ -107,17 +107,17 @@ void storeVec(ofstream &stream, vector <int> vec[], int gen, int cols);
 void storeVecEnd(vector <int> vec[], int cols, string fileName, string outpath);
 void storeNum(int num, string fileName, string outpath);
 void storeParam(string fileName, string outpath);
-void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen);
+void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, double (&traits)[numSpec][2]);
 
 void calculateTotalPopSpec(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&totalPopSpec)[2]);
 void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&cellPop)[2]);
 int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
 
 // Metabolic Theory Functions
-double searchRate(int Si, double T, double (&Traits)[numSpec][2]);
-double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
-double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]);
-double consumptionRate(int Si, int Sj, double T, double (&Traits)[numSpec][2], int Nj);
+double searchRate(int Si, double T, double (&traits)[numSpec][2]);
+double attackProb(int Si, int Sj, double (&traits)[numSpec][2]);
+double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]);
+double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj);
 
 ///////////////////////////////
 //          Templates        //
@@ -305,7 +305,7 @@ int main(int argc, char *argv[]) {
     if(fragmentation == 1) {
 
         read2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        read2DArray<double, 2>(Traits, 2, numSpec, "/Traits.txt", outpath);
+        read2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
         readArray<double>(disp, numSpec, "/disp.txt", outpath);
 
         // Read in predefined landscape with 1s for forest cells and 0 for non-forest cells
@@ -331,8 +331,8 @@ int main(int argc, char *argv[]) {
         // Create and store species traits
         // createJMatrix(J, probInt, eng);
         // store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        createTraits(Traits, eng, ppProb);
-        store2DArray<double, 2>(Traits, 2, numSpec, "/Traits.txt", outpath);
+        createTraits(traits, eng, ppProb);
+        store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
         createDisp(disp);
         storeArray<double>(disp, numSpec, "/disp.txt", outpath);
         storeParam("/Parameters.txt", outpath);
@@ -386,7 +386,7 @@ int main(int argc, char *argv[]) {
         for (int j = 0; j < numCells; j++) {
             int cell = cellOrder[j];
             kill(cellPopSpec, probDeath, cell, numSpec, eng);
-            reproduction(cellPopSpec, cellList, J, cell, numSpec, Rfr, eng);
+            reproduction(cellPopSpec, cellList, traits, cell, numSpec, Rfr, eng);
             probDispDen = dispersalProb(cellPopSpec, Rfr, cell, probDeath, probDisp);
             dispersal(cellPopSpec, distArray, disp, probDispDen, cell, numSpec, dispNum, eng);
             if(fragmentation == 0) {
@@ -409,7 +409,7 @@ int main(int argc, char *argv[]) {
             store2ColFiles(s_totalPop, i, totalPop);
             store2ColFiles(s_totalRich, i, totalRich);
             storeVec(s_totalPopSpec, totalPopSpec, i, 2);
-            storeCellPopSpec(s_cellPopSpec, cellPopSpec, i);
+            storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
 
             //Live output to console
             cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
@@ -491,11 +491,6 @@ void storeParam(string fileName, string outpath) {
 
 }
 
-void storeCellPopSpec(ofstream &stream, int gen, vector <int> cellPopSpec[3]) {
-    for (int i = 0; i < cellPopSpec[0].size(); i++) {
-        stream << gen+1 << " " << cellPopSpec[0][i] + 1 << " " << cellPopSpec[1][i] + 1 << " " << cellPopSpec[2][i] << "\n";
-    }
-}
 
 void store2ColFiles(ofstream &stream, int firstCol, int secondCol) {
 
@@ -639,7 +634,7 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
     }
 }
 
-double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&Traits)[numSpec][2], int cell, int numSpec, int ind) {
+double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int ind) {
 
     double H;
     double N; // Store abundance of focal species
@@ -653,8 +648,8 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
         // But first check they're not trying to eat or being eaten by their own species
         if(cellPopSpec[cell][0][i] != ind) {
             int Sj = cellPopSpec[cell][0][i];
-            H += cellPopSpec[cell][1][i]*consumptionRate(ind, Sj, 0, Traits, cellPopSpec[cell][1][i]);
-            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, 0, Traits, N);
+            H += cellPopSpec[cell][1][i]*consumptionRate(ind, Sj, 0, traits, cellPopSpec[cell][1][i]);
+            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, 0, traits, N);
         }
     }
 
@@ -663,7 +658,7 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
 }
 
 void reproduction(vector <int> (&cellPopSpec)[numCells][2], 
-int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSpec, int Rfr, mt19937& eng) {
+int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng) {
 
     int pop = getPop(cellPopSpec, cell);
 
@@ -673,7 +668,7 @@ int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSp
         double H, pOff;
 
         chosenInd = randomInd(cellPopSpec, pop, numSpec, cell, eng);
-        H = calculateInteractions(cellPopSpec, Traits, cell, numSpec, chosenInd) - (pop/Rfr); // 10 chosen as arbitrary carrying capactiy
+        H = calculateInteractions(cellPopSpec, traits, cell, numSpec, chosenInd) - (pop/Rfr); // 10 chosen as arbitrary carrying capactiy
         pOff = exp(H) / (1 + exp(H));
 
         if (uniform(eng) <= pOff) {
@@ -798,11 +793,11 @@ void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng) 
     }
 } 
 
-void createTraits(double (&Traits)[numSpec][2], mt19937& eng, double ppProb) {
+void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProb) {
     std::lognormal_distribution<double> distribution(-6.0, 6.0);
     for (int i = 0; i < numSpec; i++) {
-        Traits[i][0] = distribution(eng);
-        if(ppProb < uniform(eng)) {Traits[i][1] = 1;} else {Traits[i][1] = 0;};
+        traits[i][0] = distribution(eng);
+        if(ppProb < uniform(eng)) {traits[i][1] = 1;} else {traits[i][1] = 0;};
     }
 }
 
@@ -887,12 +882,13 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
     }
 }
 
-void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen) {
+void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, double (&traits)[numSpec][2]) {
 
     for (int i = 0; i < numCells; i++) {
         for (int j = 0; j < vec[i][0].size(); j++) {
             stream << gen+1 << " " << i+1 << " " << vec[i][0][j] + 1 << " " << vec[i][1][j] << " " << 
-            calculateInteractions(cellPopSpec, Traits, i, numSpec, vec[i][0][j]) << "\n";
+            traits[vec[i][0][j]][0] << " " << 
+            calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) << "\n";
         }
     }
 }
@@ -901,10 +897,10 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen) 
 // Metabolic Theory Functions
 //////////
 
-double searchRate(int Si, double T, double (&Traits)[numSpec][2]) {
+double searchRate(int Si, double T, double (&traits)[numSpec][2]) {
     
     double V0 = 0.33; double d0 = 1.62; 
-    double a; double Mi = Traits[Si][0];
+    double a; double Mi = traits[Si][0];
 
     a = 2*V0*d0*(pow(Mi, 0.63));
 
@@ -912,11 +908,11 @@ double searchRate(int Si, double T, double (&Traits)[numSpec][2]) {
     
 }
 
-double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]) {
+double attackProb(int Si, int Sj, double (&traits)[numSpec][2]) {
 
     double Rp = 0.1;
-    double Mi = Traits[Si][0];
-    double Mj = Traits[Sj][0];
+    double Mi = traits[Si][0];
+    double Mj = traits[Sj][0];
 
     double A = (1/(1 + 0.25*(pow(exp(1), -pow(Mi, 0.33)))))*pow(1/(1 + pow(log10(Rp*(Mi/Mj)), 2)),0.2);
 
@@ -924,12 +920,12 @@ double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]) {
 
 }
 
-double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]) {
+double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]) {
 
     double h0 = 1;
     double Rp = 0.1;
-    double Mi = Traits[Si][0];
-    double Mj = Traits[Sj][0];
+    double Mi = traits[Si][0];
+    double Mj = traits[Sj][0];
 
     double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2));
 
@@ -937,10 +933,10 @@ double handlingTime(int Si, int Sj, double T, double (&Traits)[numSpec][2]) {
 
 }
 
-double consumptionRate(int Si, int Sj, double T, double (&Traits)[numSpec][2], int Nj) {
+double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj) {
 
-    double c = (searchRate(Si, T, Traits)*attackProb(Si, Sj, Traits)*Nj)/
-    (1 + searchRate(Si, T, Traits)*attackProb(Si, Sj, Traits)*handlingTime(Si, Sj, T, Traits)*Nj);
+    double c = (searchRate(Si, T, traits)*attackProb(Si, Sj, traits)*Nj)/
+    (1 + searchRate(Si, T, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, traits)*Nj);
 
     return c;
 
