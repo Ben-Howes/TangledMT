@@ -24,8 +24,8 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 1;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 1;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 4;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 4;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 const int numCells = cellRows * cellCols;   // Sets the number of cells in the landscape (this needs to be created outside of this code, likely in R, with appropriate distances etc).
 int landscapeArray[cellCols][cellRows];     // Landscape array for filling with default values, or reading in from landscape created in .txt format.
 int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
@@ -33,7 +33,7 @@ double distArray[numCells][numCells];       // Distance from each cell to every 
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
-const int t = 100000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -87,7 +87,8 @@ void initialisePop(vector <int> (&cellPopSpec)[numCells][2], int numSpec, int nu
 int chooseInRange(int a, int b, mt19937& eng);
 void immigration(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, int &immNum, mt19937& eng);
 void kill(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, mt19937& eng);
-void reproduction(vector <int> (&cellPopSpec)[numCells][2], int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSpec, int Rfr, mt19937& eng);
+void reproduction(vector <int> (&cellPopSpec)[numCells][2], 
+int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng);
 double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int ind);
 void shuffle(int arr[], int arrElements, mt19937& eng);
 int randomInd(vector <int> (&cellPopSpec)[numCells][2], int pop, int numSpec, int cell, mt19937& eng);
@@ -106,7 +107,7 @@ void storeVec(ofstream &stream, vector <int> vec[], int gen, int cols);
 void storeVecEnd(vector <int> vec[], int cols, string fileName, string outpath);
 void storeNum(int num, string fileName, string outpath);
 void storeParam(string fileName, string outpath);
-void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen);
+void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, double (&traits)[numSpec][2]);
 
 void calculateTotalPopSpec(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&totalPopSpec)[2]);
 void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&cellPop)[2]);
@@ -331,7 +332,7 @@ int main(int argc, char *argv[]) {
         // Create and store species traits
         // createJMatrix(J, probInt, eng);
         // store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        createTraits(Traits, eng, ppProb);
+        createTraits(traits, eng, ppProb);
         store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
         createDisp(disp);
         storeArray<double>(disp, numSpec, "/disp.txt", outpath);
@@ -386,7 +387,7 @@ int main(int argc, char *argv[]) {
         for (int j = 0; j < numCells; j++) {
             int cell = cellOrder[j];
             kill(cellPopSpec, probDeath, cell, numSpec, eng);
-            reproduction(cellPopSpec, cellList, J, cell, numSpec, Rfr, eng);
+            reproduction(cellPopSpec, cellList, traits, cell, numSpec, Rfr, eng);
             probDispDen = dispersalProb(cellPopSpec, Rfr, cell, probDeath, probDisp);
             dispersal(cellPopSpec, distArray, disp, probDispDen, cell, numSpec, dispNum, eng);
             if(fragmentation == 0) {
@@ -398,7 +399,7 @@ int main(int argc, char *argv[]) {
 
         // Calculate richness and abundance metrics
         // Dependent on how often you want to save them
-        if((i+1)%10000 == 0) {
+        if((i+1)%1000 == 0) {
             calculateTotalPopSpec(cellPopSpec, totalPopSpec);
             totalPop = 0;
             for (int i = 0; i < totalPopSpec[0].size(); i++){totalPop += totalPopSpec[1][i];}
@@ -409,7 +410,7 @@ int main(int argc, char *argv[]) {
             store2ColFiles(s_totalPop, i, totalPop);
             store2ColFiles(s_totalRich, i, totalRich);
             storeVec(s_totalPopSpec, totalPopSpec, i, 2);
-            storeCellPopSpec(s_cellPopSpec, cellPopSpec, i);
+            storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
 
             //Live output to console
             cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
@@ -489,12 +490,6 @@ void storeParam(string fileName, string outpath) {
 
     file.close();
 
-}
-
-void storeCellPopSpec(ofstream &stream, int gen, vector <int> cellPopSpec[3]) {
-    for (int i = 0; i < cellPopSpec[0].size(); i++) {
-        stream << gen+1 << " " << cellPopSpec[0][i] + 1 << " " << cellPopSpec[1][i] + 1 << " " << cellPopSpec[2][i] << "\n";
-    }
 }
 
 void store2ColFiles(ofstream &stream, int firstCol, int secondCol) {
@@ -662,7 +657,7 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
 }
 
 void reproduction(vector <int> (&cellPopSpec)[numCells][2], 
-int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSpec, int Rfr, mt19937& eng) {
+int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng) {
 
     int pop = getPop(cellPopSpec, cell);
     double cellMass;
@@ -674,7 +669,8 @@ int (&cellList)[numCells][2], double (&J)[numSpec][numSpec], int cell, int numSp
         
         cellMass = getCellMass(cell); // Get the total mass of all individuals in the cell
         chosenInd = randomInd(cellPopSpec, pop, numSpec, cell, eng);
-        H = calculateInteractions(cellPopSpec, traits, cell, numSpec, chosenInd) - (cellMass/Rfr) - pow(traits[chosenInd][0], 0.75); // 10 chosen as arbitrary carrying capactiy
+        H = calculateInteractions(cellPopSpec, traits, cell, numSpec, chosenInd) - (cellMass/Rfr);
+        // - pow(traits[chosenInd][0], 0.75); // 10 chosen as arbitrary carrying capactiy
         pOff = exp(H) / (1 + exp(H));
 
         if (uniform(eng) <= pOff) {
@@ -800,7 +796,7 @@ void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng) 
 } 
 
 void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProb) {
-    std::lognormal_distribution<double> distribution(-6.0, 6.0);
+    std::lognormal_distribution<double> distribution(-3.0, 3.0);
     for (int i = 0; i < numSpec; i++) {
         traits[i][0] = distribution(eng);
         if(ppProb < uniform(eng)) {traits[i][1] = 1;} else {traits[i][1] = 0;};
@@ -888,12 +884,13 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
     }
 }
 
-void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen) {
+void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, double (&traits)[numSpec][2]) {
 
     for (int i = 0; i < numCells; i++) {
         for (int j = 0; j < vec[i][0].size(); j++) {
             stream << gen+1 << " " << i+1 << " " << vec[i][0][j] + 1 << " " << vec[i][1][j] << " " << 
-            calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) << "\n";
+            traits[vec[i][0][j]][0] << " " << calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) << " " <<  (getCellMass(i)/Rfr) 
+            << " " <<  pow(traits[vec[i][0][j]][0], 0.75) << "\n";
         }
     }
 }

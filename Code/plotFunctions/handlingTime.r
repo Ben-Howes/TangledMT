@@ -20,7 +20,7 @@ masses = expand.grid(masses, masses) %>%
 
 calculateHandling = function(mi, mj) {
 
-    Hij = H0*(mi^(B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))
+    Hij = H0*(mi^(-B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))
 
     return(Hij)
 

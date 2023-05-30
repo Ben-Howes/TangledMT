@@ -15,7 +15,7 @@ masses = expand.grid(masses, masses) %>%
 
 calculateAttackProb = function(mi, mj) {
 
-    Aij = (1/(1 + 0.25*(exp(1)^-(mj^0.33))))*(1/(1 + (log10(Rp*(mj/mi))^2)))^0.2
+    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^0.2
 
     return(Aij)
 
