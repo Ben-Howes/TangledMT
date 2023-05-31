@@ -5,7 +5,7 @@
 
 library(tidyverse)
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -108,3 +108,33 @@ ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill 
     theme(text = element_text(size = 30),
     axis.text.y = element_blank()) + 
     scale_fill_viridis_c()
+
+
+###############################
+## Food Web
+###############################
+
+library(igraph)
+library(ggnetwork)
+library(sna)
+
+n = network(rgraph(10, tprob = 0.2), directed = FALSE)
+
+web = read_delim("consumptionRate.txt", col_names = FALSE) %>%
+    rename(g = 1, c = 2, Si = 3, Mi = 4, Ni = 5, Sj = 6, Mj = 7, Nj = 8, C = 9)
+
+## Change to be names of species i and j in first two columns
+web = web %>% relocate(Si, Sj, .before = g)
+
+test = web %>% filter(g == 100000)
+testMat = test %>% dplyr::select(Si, Sj, C) %>% pivot_wider(names_from = Sj, values_from = C, values_fill = 0) %>%
+    column_to_rownames("Si")
+
+ggplot(ggnetwork(test), aes(x, y, xend = xend, yend = yend)) + 
+    geom_edges(aes(linewidth = log10(C/Mi)), color = "grey50", curvature = 0.1,
+    arrow = arrow(length = unit(6, "pt"), type = "closed")) +
+    geom_nodes(aes(size = log10(Nj*Mj))) +
+    geom_nodetext(aes(label = round(log10(Mi), 2)), fontface = "bold", col = "white") +
+    geom_edgetext(aes(label = round(C/Mi, 2)), color = "white", fill = "grey25",
+    box.padding = unit(1, "lines")) +
+    theme_blank()
