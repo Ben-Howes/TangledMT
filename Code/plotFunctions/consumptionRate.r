@@ -12,9 +12,9 @@ Rp = 0.1
 a = 1
 c = 1
 
-calculateSearchRate = function(mi) {
+calculateSearchRate = function(mi, mj) {
 
-    aij = 2*(V0)*(D0)*(mi^(0.63))
+    aij = 2*(V0)*(D0)*(mi^(0.63))*(mj^(0.21))
 
     return(aij)
 

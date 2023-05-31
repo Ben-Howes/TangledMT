@@ -5,7 +5,7 @@
 
 library(tidyverse)
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -32,9 +32,9 @@ ggplot(traits, aes(log10(M), y = ..density..)) +
 totalPopSpec = totalPopSpec %>% left_join(traits)
 
 ggplot(totalPop, aes(g, n)) + 
-    geom_line(linewidth = 2) +
+    geom_line(linewidth = 1) +
     theme_classic() +
-    labs(x = "Generation", y = "Total Population") +
+    labs(x = "Time", y = "Total Population") +
     theme(text = element_text(size = 30))
 
 ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 25), aes(fct_rev(fct_reorder(as.factor(s), n)), n)) +
@@ -68,7 +68,7 @@ avgMass = totalPopSpec %>%
     summarise(avgM = sum(totalM)/sum(n))
 
 ggplot(avgMass, aes(g, log10(avgM))) + 
-    geom_line(linewidth = 2) +
+    geom_line(linewidth = 1) +
     theme_classic() +
     labs(x = "Time", y = "Log10(Average Body Mass)") +
     theme(text = element_text(size = 30))
@@ -98,7 +98,7 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% mutate(nM = n*M), aes(
     scale_y_continuous(expand = c(0, 0))
 
 ## Raster figure showing which species are alive when
-rasterDat = cellPopSpec %>% group_by(s) %>% summarise(N = sum(n)) %>% filter(N > 500) %>% distinct(s)
+rasterDat = cellPopSpec %>% group_by(s) %>% summarise(N = sum(n*M)) %>% filter(N > 500) %>% distinct(s)
 rasterDat = cellPopSpec %>% filter(s %in% rasterDat$s)
 
 ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill = log10(mass))) + 

@@ -33,7 +33,7 @@ double distArray[numCells][numCells];       // Distance from each cell to every 
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
-const int t = 1000000;                         // Number of time steps in the model
+const int t = 2000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -114,7 +114,7 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
 int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
 
 // Metabolic Theory Functions
-double searchRate(int Si, double T, double (&traits)[numSpec][2]);
+double searchRate(int Si, int Sj, double T, double (&traits)[numSpec][2]);
 double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
 double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]);
 double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj);
@@ -660,7 +660,7 @@ void reproduction(vector <int> (&cellPopSpec)[numCells][2],
 int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng) {
 
     int pop = getPop(cellPopSpec, cell);
-    double cellMass;
+    double cellMass; double B0 = 4.15*pow(10, -8);
 
     if(pop > 0) {
 
@@ -669,8 +669,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         
         cellMass = getCellMass(cell); // Get the total mass of all individuals in the cell
         chosenInd = randomInd(cellPopSpec, pop, numSpec, cell, eng);
-        H = calculateInteractions(cellPopSpec, traits, cell, numSpec, chosenInd) - (cellMass/Rfr);
-        // - pow(traits[chosenInd][0], 0.75); // 10 chosen as arbitrary carrying capactiy
+        H = calculateInteractions(cellPopSpec, traits, cell, numSpec, chosenInd) - (cellMass/Rfr) - (B0*pow(traits[chosenInd][0], 0.75)); // Rfr 10 chosen as arbitrary carrying capactiy
         pOff = exp(H) / (1 + exp(H));
 
         if (uniform(eng) <= pOff) {
@@ -899,12 +898,13 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, 
 // Metabolic Theory Functions
 //////////
 
-double searchRate(int Si, double T, double (&traits)[numSpec][2]) {
+double searchRate(int Si, int Sj, double T, double (&traits)[numSpec][2]) {
     
     double V0 = 0.33; double d0 = 1.62; 
     double a; double Mi = traits[Si][0];
+    double Mj = traits[Sj][0];
 
-    a = 2*V0*d0*(pow(Mi, 0.63));
+    a = 2*V0*d0*(pow(Mi, 0.63))*(pow(Mj, 0.21));
 
     return a;
     
@@ -937,10 +937,8 @@ double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]) {
 
 double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj) {
 
-    double Mj = traits[Sj][0];
-
-    double c = (searchRate(Si, T, traits)*attackProb(Si, Sj, traits)*Nj*Mj)/
-    (1 + searchRate(Si, T, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, traits)*Nj);
+    double c = (searchRate(Si, Sj, T, traits)*attackProb(Si, Sj, traits)*Nj)/
+    (1 + searchRate(Si, Sj, T, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, traits)*Nj);
 
     return c;
 
