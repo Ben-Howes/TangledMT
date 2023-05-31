@@ -24,8 +24,8 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 4;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 4;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 1;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 1;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 const int numCells = cellRows * cellCols;   // Sets the number of cells in the landscape (this needs to be created outside of this code, likely in R, with appropriate distances etc).
 int landscapeArray[cellCols][cellRows];     // Landscape array for filling with default values, or reading in from landscape created in .txt format.
 int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
@@ -33,7 +33,7 @@ double distArray[numCells][numCells];       // Distance from each cell to every 
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
-const int t = 2000000;                         // Number of time steps in the model
+const int t = 100000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -119,6 +119,7 @@ double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
 double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]);
 double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj);
 double getCellMass(int cell);
+void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2], int gen, double (&traits)[numSpec][2]);
 
 ///////////////////////////////
 //          Templates        //
@@ -379,6 +380,9 @@ int main(int argc, char *argv[]) {
     s_totalPopSpec.open(respath + "/totalPopSpec.txt");
     ofstream s_cellPopSpec;
     s_cellPopSpec.open(respath + "/cellPopSpec.txt");
+    ofstream s_consumptionRate;
+    s_consumptionRate.open(respath + "/consumptionRate.txt");
+    
     
     // Start model dynamics
     for (int i = 0; i < t; i++) {
@@ -411,6 +415,7 @@ int main(int argc, char *argv[]) {
             store2ColFiles(s_totalRich, i, totalRich);
             storeVec(s_totalPopSpec, totalPopSpec, i, 2);
             storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
+            storeConsumptionRate(s_consumptionRate,  cellPopSpec, i, traits);
 
             //Live output to console
             cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
@@ -431,7 +436,7 @@ int main(int argc, char *argv[]) {
         //  storeVecEnd(cellPopSpec, 3, "/final_cellPopSpec.txt", finfragpath);
     }
     // Close all streams to files
-    s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopSpec.close();
+    s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopSpec.close(), s_consumptionRate.close();
 
     // end timer FC
     cout << "Elapsed(s)=" << since(start).count() << endl; 
@@ -953,5 +958,21 @@ double getCellMass(int cell) {
     }
 
     return cellMass;
+
+}
+
+void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2], int gen, double (&traits)[numSpec][2]) {
+
+    for (int i = 0; i < numCells; i++) {
+        for (int j = 0; j < cellPopSpec[i][0].size(); j++) {
+            for (int k = 0; k < cellPopSpec[i][0].size(); k++) {
+                if(cellPopSpec[i][0][j] != cellPopSpec[i][0][k]) {
+                    stream << gen+1 << " " << i+1 << " " << cellPopSpec[i][0][j] + 1 << " " << traits[cellPopSpec[i][0][j]][0] << " " << cellPopSpec[i][1][j]
+                    << " " << cellPopSpec[i][0][k] + 1 << " " << traits[cellPopSpec[i][0][k]][0] << " " << cellPopSpec[i][1][k] << " " << 
+                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits, cellPopSpec[i][1][k])*cellPopSpec[i][1][k] << "\n";
+                }
+            }
+        }
+    }
 
 }
