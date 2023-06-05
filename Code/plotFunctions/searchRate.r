@@ -12,7 +12,7 @@ D0 = 1.62
 P0 = 1 ## Temperature constant (vary by taxa)
 k = 8.6173*(10^-5) ## Boltzmann constant
 T0 = 293.15 ## 0 celsius in Kelvin
-E = 0.65 ## Activation energy
+E = 0 ## Activation energy
 
 temp = 20 ## teperatures in celsius
 masses = seq(log10(0.0000001), log10(1000000), length.out = 100)
