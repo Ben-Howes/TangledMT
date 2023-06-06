@@ -24,8 +24,8 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 1;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 1;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 2;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 2;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 const int numCells = cellRows * cellCols;   // Sets the number of cells in the landscape (this needs to be created outside of this code, likely in R, with appropriate distances etc).
 int landscapeArray[cellCols][cellRows];     // Landscape array for filling with default values, or reading in from landscape created in .txt format.
 int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
@@ -33,7 +33,7 @@ double distArray[numCells][numCells];       // Distance from each cell to every 
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
-const int t = 100000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -46,8 +46,9 @@ int weightInt = 5;                         // Weighting of importance of interac
 
 // Metabolic theory variables
 double ppProb = 0.25;                       // Sets proportion of species that are primary producers
-double Temp = 300;                          // Set temperature in kelvin (273.15 kelvin = 0 celsius)
-double k = 1.380649*(10^-23);               // Boltzmann constant
+double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
+double T0 = 273.15;                        // 0 celsiues in Kelvin
+double k = 8.6173*(10^-5);                  // Boltzmann constant
 
 ///////////////////////
 // Define Variables //
@@ -114,11 +115,12 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
 int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
 
 // Metabolic Theory Functions
-double searchRate(int Si, int Sj, double T, double (&traits)[numSpec][2]);
+double searchRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]);
 double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
-double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]);
-double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj);
+double handlingTime(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]);
+double consumptionRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2], int Nj);
 double getCellMass(int cell);
+double arrhenius(double E, double T);
 void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2], int gen, double (&traits)[numSpec][2]);
 
 ///////////////////////////////
@@ -652,8 +654,8 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
         // But first check they're not trying to eat or being eaten by their own species
         if(cellPopSpec[cell][0][i] != ind) {
             int Sj = cellPopSpec[cell][0][i];
-            H += cellPopSpec[cell][1][i]*consumptionRate(ind, Sj, 0, traits, cellPopSpec[cell][1][i]);
-            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, 0, traits, N);
+            H += cellPopSpec[cell][1][i]*consumptionRate(ind, Sj, T, 0, traits, cellPopSpec[cell][1][i]);
+            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, T, 0, traits, N);
         }
     }
 
@@ -903,13 +905,13 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, 
 // Metabolic Theory Functions
 //////////
 
-double searchRate(int Si, int Sj, double T, double (&traits)[numSpec][2]) {
+double searchRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]) {
     
     double V0 = 0.33; double d0 = 1.62; 
     double a; double Mi = traits[Si][0];
     double Mj = traits[Sj][0];
 
-    a = 2*V0*d0*(pow(Mi, 0.63))*(pow(Mj, 0.21));
+    a = 2*V0*d0*(pow(Mi, 0.63))*(pow(Mj, 0.21))*arrhenius(E, T);
 
     return a;
     
@@ -927,25 +929,31 @@ double attackProb(int Si, int Sj, double (&traits)[numSpec][2]) {
 
 }
 
-double handlingTime(int Si, int Sj, double T, double (&traits)[numSpec][2]) {
+double handlingTime(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]) {
 
     double h0 = 1;
     double Rp = 0.1;
     double Mi = traits[Si][0];
     double Mj = traits[Sj][0];
 
-    double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2));
+    double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2))*arrhenius(E, T);
 
     return h;
 
 }
 
-double consumptionRate(int Si, int Sj, double T, double (&traits)[numSpec][2], int Nj) {
+double consumptionRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2], int Nj) {
 
-    double c = (searchRate(Si, Sj, T, traits)*attackProb(Si, Sj, traits)*Nj)/
-    (1 + searchRate(Si, Sj, T, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, traits)*Nj);
+    double c = (searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*Nj*traits[Sj][0])/
+    (1 + searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, E, traits)*Nj);
 
     return c;
+
+}
+
+double arrhenius(double E, double T) {
+
+    return pow(exp(1), -E/(k*(T+T0)));
 
 }
 
@@ -969,7 +977,7 @@ void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells
                 if(cellPopSpec[i][0][j] != cellPopSpec[i][0][k]) {
                     stream << gen+1 << " " << i+1 << " " << cellPopSpec[i][0][j] + 1 << " " << traits[cellPopSpec[i][0][j]][0] << " " << cellPopSpec[i][1][j]
                     << " " << cellPopSpec[i][0][k] + 1 << " " << traits[cellPopSpec[i][0][k]][0] << " " << cellPopSpec[i][1][k] << " " << 
-                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits, cellPopSpec[i][1][k])*cellPopSpec[i][1][k] << "\n";
+                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits, cellPopSpec[i][1][k])*cellPopSpec[i][1][k] << "\n";
                 }
             }
         }

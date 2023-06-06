@@ -116,4 +116,4 @@ ggplot(opt, aes(x = pij, opt)) +
     legend.title = element_text(vjust = 1)) +
     scale_x_reverse()
 
-ggsave(filename = "optimisation.png", width = 10, height = 10)
+ggsave(filename = "optimisation.png", width = 15, height = 10)
