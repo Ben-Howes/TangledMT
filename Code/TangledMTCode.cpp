@@ -24,15 +24,12 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 2;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 2;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
-const int numCells = cellRows * cellCols;   // Sets the number of cells in the landscape (this needs to be created outside of this code, likely in R, with appropriate distances etc).
-int landscapeArray[cellCols][cellRows];     // Landscape array for filling with default values, or reading in from landscape created in .txt format.
-int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
-double distArray[numCells][numCells];       // Distance from each cell to every other cell, for use in dispersal and interactions.
+const int cellRows = 21;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 21;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
-const int numSpec = 10000;                    // Number of species in the model (each species will have interacitons and mass associated with it).
+const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
+const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
 const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
@@ -41,6 +38,7 @@ double probImm = 0.0001;                      // Probability of an individual im
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
 double dispDist = 1;                         // Store dispersal distance
+double probMut = 0.0001;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 
 int weightInt = 5;                         // Weighting of importance of interactions. Higher value puts more importance on interactions in calculating probability of offspring.
 
@@ -55,6 +53,11 @@ double k = 8.6173*(10^-5);                  // Boltzmann constant
 //////////////////////
 
 // These variables should not be changed unless the model itself is being edited
+
+const int numCells = cellRows * cellCols;   // Sets the number of cells in the landscape (this needs to be created outside of this code, likely in R, with appropriate distances etc).
+int landscapeArray[cellCols][cellRows];     // Landscape array for filling with default values, or reading in from landscape created in .txt format.
+int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
+double distArray[numCells][numCells];       // Distance from each cell to every other cell, for use in dispersal and interactions.
 
 static double J[numSpec][numSpec];                 // J-matrix which includes interactions between all species, with number of rows and cols equal to number of species. 
 static double traits[numSpec][2];                        // Stores traits of species, mass, primary producer etc
@@ -113,6 +116,12 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, 
 void calculateTotalPopSpec(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&totalPopSpec)[2]);
 void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&cellPop)[2]);
 int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
+
+// Mutations
+int mutation(vector <int> (&cellPopSpec)[numCells][2], double prob, int chosenInd, mt19937& eng);
+int ConvertToDec(int (&arr)[L]);
+void ConvertToBinary(int n, int j, int (&vec)[L]);
+void Bin_recursive(int n, int j, int (&vec)[L]);
 
 // Metabolic Theory Functions
 double searchRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]);
@@ -654,8 +663,8 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
         // But first check they're not trying to eat or being eaten by their own species
         if(cellPopSpec[cell][0][i] != ind) {
             int Sj = cellPopSpec[cell][0][i];
-            H += cellPopSpec[cell][1][i]*consumptionRate(ind, Sj, T, 0, traits, cellPopSpec[cell][1][i]);
-            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, T, 0, traits, N);
+            H += consumptionRate(ind, Sj, T, 0, traits, cellPopSpec[cell][1][i]);
+            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, T, 0, traits, 1);
         }
     }
 
@@ -680,7 +689,8 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         pOff = exp(H) / (1 + exp(H));
 
         if (uniform(eng) <= pOff) {
-            addSpecies(cellPopSpec, cell, chosenInd);
+            int mutSpec = mutation(cellPopSpec, probMut, chosenInd, eng);
+            addSpecies(cellPopSpec, cell, mutSpec);
         }
     }
 }
@@ -901,9 +911,68 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, 
     }
 }
 
-//////////
+///////////////////////
+// Mutation functions
+///////////////////////
+
+void Bin_recursive(int n, int j, int (&vec)[L]) { // It must be called setting j=L.
+    j--;
+    if (n / 2 != 0) {
+        Bin_recursive(n/2, j, vec);
+    }
+    vec[j] = n % 2;
+}
+
+
+void ConvertToBinary(int n, int j, int (&vec)[L]) {
+    int i;
+    if(n >= pow(2,L)){
+        cout << "You have set the number of species greater than 2^" << L << endl;
+        exit (EXIT_FAILURE);
+    }
+    for (i=0; i<L; i++) {
+        vec[i]=0;
+    }
+    Bin_recursive(n, j, vec);
+}
+
+
+int ConvertToDec(int (&arr)[L]) {
+    int i, dec=0;
+    for (i=0; i<L;i++) {
+        if(arr[L-1-i] == 1){
+            dec += pow(2,i);
+        }
+    }
+    return dec;
+}
+
+int mutation(vector <int> (&cellPopSpec)[numCells][2], double prob, int chosenInd, mt19937& eng) {
+    
+    int b1[L]; // To store the binary sequence
+    int mutSpec; // Integer identifier of mutated species that will be created
+
+    ConvertToBinary(chosenInd, L, b1);
+
+    for (int i = 0; i < L; i++) {
+        if (uniform(eng) <= prob) {
+            if (b1[i] == 1) {
+                b1[i] = 0;
+            } else {
+                b1[i] = 1;
+            }
+        }
+    }
+
+    mutSpec = ConvertToDec(b1); // Convert our mutated species to the binary representation
+
+    return mutSpec;
+
+}
+
+///////////////////////
 // Metabolic Theory Functions
-//////////
+///////////////////////
 
 double searchRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]) {
     

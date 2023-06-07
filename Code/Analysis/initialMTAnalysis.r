@@ -109,7 +109,6 @@ ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill 
     axis.text.y = element_blank()) + 
     scale_fill_viridis_c()
 
-
 ###############################
 ## Food Web
 ###############################
