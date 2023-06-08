@@ -30,7 +30,7 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1000000;                         // Number of time steps in the model
+const int t = 100000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -40,12 +40,9 @@ float probDisp = 0.001;                       // Probability of an individual di
 double dispDist = 1;                         // Store dispersal distance
 double probMut = 0.0001;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 
-int weightInt = 5;                         // Weighting of importance of interactions. Higher value puts more importance on interactions in calculating probability of offspring.
-
 // Metabolic theory variables
 double ppProb = 0.25;                       // Sets proportion of species that are primary producers
 double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
-double T0 = 273.15;                        // 0 celsiues in Kelvin
 double k = 8.6173*(10^-5);                  // Boltzmann constant
 
 ///////////////////////
@@ -77,6 +74,9 @@ int immNum = 0;                                 // Counts number of immigrations
 int dispNum = 0;                                // Counts number of dispersals that occur
 
 static const double two_pi  = 2.0*3.141592653;
+
+// Metabolic theory variables
+static double T0 = 273.15;                        // 0 celsius in Kelvin - used to add to the temperature we set in C to turn into Kelvin
 
 //////////////////////////
 // Initialise functions //
@@ -403,8 +403,8 @@ int main(int argc, char *argv[]) {
             int cell = cellOrder[j];
             kill(cellPopSpec, probDeath, cell, numSpec, eng);
             reproduction(cellPopSpec, cellList, traits, cell, numSpec, Rfr, eng);
-            probDispDen = dispersalProb(cellPopSpec, Rfr, cell, probDeath, probDisp);
-            dispersal(cellPopSpec, distArray, disp, probDispDen, cell, numSpec, dispNum, eng);
+            // probDispDen = dispersalProb(cellPopSpec, Rfr, cell, probDeath, probDisp);
+            dispersal(cellPopSpec, distArray, disp, probDisp, cell, numSpec, dispNum, eng); // Now set to a constant probability
             if(fragmentation == 0) {
                 immigration(cellPopSpec, probImm, cell, numSpec, immNum, eng);
             } else {
