@@ -5,7 +5,7 @@
 
 library(tidyverse)
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
 setwd(gpath)
 
 ## Load datasets

@@ -24,13 +24,13 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 21;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 21;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 2;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 2;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 int Rfr = 10;                               // Set carrying capacity which will be the same for all cells.
 
 const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 100000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -653,18 +653,18 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
 double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int ind) {
 
     double H = 0;
+    double CE = 0.5; // Conversation efficiency
     double N; // Store abundance of focal species
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {if(cellPopSpec[cell][0][i] == ind){N = cellPopSpec[cell][1][i]; break;}}
 
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
-        // Calculate per-capita consumption rate of focal species with others in the cell
-        // and multiply by the abundance of the other species
-        // Also do this for the focal species being consumed by the other species
-        // But first check they're not trying to eat or being eaten by their own species
+        // Stop focal species from eating or being eaten by itself
         if(cellPopSpec[cell][0][i] != ind) {
             int Sj = cellPopSpec[cell][0][i];
-            H += consumptionRate(ind, Sj, T, 0, traits, cellPopSpec[cell][1][i]);
-            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, T, 0, traits, 1);
+            // Per capita rate of consumption kg per ind per second x conversion efficiency
+            H += CE*consumptionRate(ind, Sj, T, 0, traits, cellPopSpec[cell][1][i]);
+            // Per capita rate of conumpstion kg per ind per second x number of consumers 
+            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, T, 0, traits, 1); 
         }
     }
 
@@ -905,11 +905,15 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, 
     for (int i = 0; i < numCells; i++) {
         for (int j = 0; j < vec[i][0].size(); j++) {
             stream << gen+1 << " " << i+1 << " " << vec[i][0][j] + 1 << " " << vec[i][1][j] << " " << 
-            traits[vec[i][0][j]][0] << " " << calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) << " " <<  (getCellMass(i)/Rfr) 
-            << " " <<  pow(traits[vec[i][0][j]][0], 0.75) << "\n";
+            traits[vec[i][0][j]][0] << " " << calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) << " " 
+            << (getCellMass(i)/Rfr) << " " << pow(traits[vec[i][0][j]][0], 0.75) << " " << 
+            exp(calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) - 
+            (getCellMass(i)/Rfr) - pow(traits[vec[i][0][j]][0], 0.75))/(1 + exp(calculateInteractions(cellPopSpec, traits, i, numSpec, vec[i][0][j]) - 
+            (getCellMass(i)/Rfr) - pow(traits[vec[i][0][j]][0], 0.75))) << "\n";
         }
     }
 }
+
 
 ///////////////////////
 // Mutation functions
@@ -1014,7 +1018,7 @@ double handlingTime(int Si, int Sj, double T, double E, double (&traits)[numSpec
 double consumptionRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2], int Nj) {
 
     double c = (searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*Nj*traits[Sj][0])/
-    (1 + searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, E, traits)*Nj);
+    (1 + (searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, E, traits)*Nj));
 
     return c;
 
@@ -1046,7 +1050,9 @@ void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells
                 if(cellPopSpec[i][0][j] != cellPopSpec[i][0][k]) {
                     stream << gen+1 << " " << i+1 << " " << cellPopSpec[i][0][j] + 1 << " " << traits[cellPopSpec[i][0][j]][0] << " " << cellPopSpec[i][1][j]
                     << " " << cellPopSpec[i][0][k] + 1 << " " << traits[cellPopSpec[i][0][k]][0] << " " << cellPopSpec[i][1][k] << " " << 
-                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits, cellPopSpec[i][1][k])*cellPopSpec[i][1][k] << "\n";
+                    searchRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits) << " " << attackProb(cellPopSpec[i][0][j], cellPopSpec[i][0][k], traits) << 
+                    " " << handlingTime(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits) << " " << 
+                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits, cellPopSpec[i][1][k]) << "\n";
                 }
             }
         }
