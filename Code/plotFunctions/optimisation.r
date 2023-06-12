@@ -3,7 +3,6 @@
 ## and plot example output
 #######################################
 
-
 library(tidyverse)
 
 gpath = "/home/ben/Documents/TangledMT/Paper/Figures/"
@@ -46,7 +45,7 @@ calculateSearchRate = function(mi, mj, T) {
 
 calculateHandling = function(mi, mj, T) {
 
-    Hij = H0*(mi^(-B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))*(P0)*(exp(1)^(-E/(k*(T + T0))))
+    Hij = H0*(mi^(-B))(*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))*)(P0)*(exp(1)^(-E/(k*(T + T0))))
 
     return(Hij)
 
@@ -78,8 +77,12 @@ masses = masses %>% filter(mi == masses[nrow(masses)/2,]$mj)
 ## Find most profitable species for our focal species
 ## and arrange from most to least profitable
 
-masses = masses %>% mutate(pij = calculateProfitability(mi, mj, T)) %>%
+masses = masses %>% mutate(Aij = calculateAttackProb(mi, mj),
+    hij = calculateHandling(mi, mj, T), 
+    pij = calculateProfitability(mi, mj, T)) %>%
     arrange(-pij)
+
+ggplot(masses, aes(log10(mj), Aij)) + geom_point()
 
 ## Add individuals assuming they are all equally abundant
 masses = masses %>% mutate(N = mj^-0.75)
@@ -100,10 +103,11 @@ optimisation = function(dat, x) {
 
 opt = lapply(1:nrow(masses), function(x) optimisation(x = x, dat = masses)) %>% bind_rows()
 
-ggplot(opt, aes(x = pij, opt)) + 
+ggplot(opt, aes(x = log10(pij), opt)) + 
+    scale_x_reverse() +
     geom_point(size = 7.5, aes(col = log10(mj))) +
     theme_classic() +
-    labs(x = "Profitability", y = "Consumption Rate (kg/s)", 
+    labs(x = "Log10(Profitability)", y = "Consumption Rate (kg/s)", 
     col = "Log10\n(Resouce Body Mass)") +
     scale_colour_viridis_c() +
     theme(text = element_text(size = 30),
@@ -113,7 +117,6 @@ ggplot(opt, aes(x = pij, opt)) +
     legend.key.size = unit(1, 'cm'), #change legend key size
     legend.key.height = unit(1, 'cm'), #change legend key height
     legend.key.width = unit(3, 'cm'),
-    legend.title = element_text(vjust = 1)) +
-    scale_x_reverse()
+    legend.title = element_text(vjust = 1))
 
 ggsave(filename = "optimisation.png", width = 15, height = 10)
