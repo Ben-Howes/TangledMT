@@ -45,7 +45,7 @@ calculateSearchRate = function(mi, mj, T) {
 
 calculateHandling = function(mi, mj, T) {
 
-    Hij = H0*(mi^(-B))(*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))*)(P0)*(exp(1)^(-E/(k*(T + T0))))
+    Hij = H0*(mi^(-B))*(((1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))))*(P0)*(exp(1)^(-E/(k*(T + T0))))
 
     return(Hij)
 
@@ -82,7 +82,17 @@ masses = masses %>% mutate(Aij = calculateAttackProb(mi, mj),
     pij = calculateProfitability(mi, mj, T)) %>%
     arrange(-pij)
 
-ggplot(masses, aes(log10(mj), Aij)) + geom_point()
+ggplot(masses, aes(log10(mj), Aij)) + 
+    geom_point() +
+    theme_classic()
+
+ggplot(masses, aes(log10(mj), log10(hij))) + 
+    geom_point() +
+    theme_classic()
+
+ggplot(masses, aes(log10(mj), log10(pij))) +
+    geom_point() + 
+    theme_classic()
 
 ## Add individuals assuming they are all equally abundant
 masses = masses %>% mutate(N = mj^-0.75)

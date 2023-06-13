@@ -124,13 +124,15 @@ void ConvertToBinary(int n, int j, int (&vec)[L]);
 void Bin_recursive(int n, int j, int (&vec)[L]);
 
 // Metabolic Theory Functions
-double searchRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]);
-double attackProb(int Si, int Sj, double (&Traits)[numSpec][2]);
-double handlingTime(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]);
-double consumptionRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2], int Nj);
+double searchRate(int Si, int Sj, double E, double (&traits)[numSpec][2]);
+double attackProb(int Si, int Sj, double (&traits)[numSpec][2]);
+double handlingTime(int Si, int Sj, double E, double (&traits)[numSpec][2]);
+double consumptionRate(int Si, int Sj, double E, double (&traits)[numSpec][2], int Nj);
 double getCellMass(int cell);
-double arrhenius(double E, double T);
+double arrhenius(double E);
 void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2], int gen, double (&traits)[numSpec][2]);
+double profitability(int Si, int Sj, double (&traits)[numSpec][2]);
+void optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int> cellPopSpec[numCells][2]);
 
 ///////////////////////////////
 //          Templates        //
@@ -139,7 +141,7 @@ void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells
 template <typename type>
 void printArray(type arr[], int arrElements) {
     for (int i = 0; i < arrElements; i++){
-        cout << arr[i] << " " << endl;
+        std::cout << arr[i] << " " << endl;
     }
     
 }
@@ -149,9 +151,9 @@ void print2DArray(type arr[][rows], int c, int r) {
 
     for (int i = 0; i < c; i++){
         for (int j = 0; j < r; j++){
-            cout << arr[i][j] << " ";
+            std::cout << arr[i][j] << " ";
         }
-    cout << endl;
+    std::cout << endl;
     }
 }
 
@@ -219,6 +221,11 @@ auto since(std::chrono::time_point<clock_t, duration_t> const& start)
     return std::chrono::duration_cast<result_t>(clock_t::now() - start);
 }
 
+//For comparing 2'nd column order
+bool sortcol(const vector<int>& v1,const vector<int>& v2) { 
+     return v1[1] < v2[1]; 
+} 
+
 ///////////////////////////////
 // Main Tangled Nature Model //
 ///////////////////////////////
@@ -256,10 +263,10 @@ int main(int argc, char *argv[]) {
     }
 
     if(argc != 2 && argc != 7 && argc != 10) {
-        cout << "Unexpected number of command line arguments" << endl;
-        cout << "Either input a seed for new community" << endl;
-        cout << "Or input the old seed, new seed, fragmentation (1), and a fragmented landscape file path" << endl;
-        cout << "Make sure there are input for dispersal distance, interaction distance and Intrascesific competition" << endl;
+        std::cout << "Unexpected number of command line arguments" << endl;
+        std::cout << "Either input a seed for new community" << endl;
+        std::cout << "Or input the old seed, new seed, fragmentation (1), and a fragmented landscape file path" << endl;
+        std::cout << "Make sure there are input for dispersal distance, interaction distance and Intrascesific competition" << endl;
         exit(0);
     }
 
@@ -276,16 +283,16 @@ int main(int argc, char *argv[]) {
     DIR* checkDir = opendir(outpath.c_str());
     if (checkDir && fragmentation == 0) {
         closedir(checkDir);
-        cout << "Directory for seed " << seed << " already exists, exiting....." << endl;
+        std::cout << "Directory for seed " << seed << " already exists, exiting....." << endl;
         exit(0);
     } else if(checkDir && fragmentation == 1) {
         closedir(checkDir);
-        cout << "Community exists, fragmenting...." << endl;
+        std::cout << "Community exists, fragmenting...." << endl;
     } else if (!checkDir && fragmentation == 0){
         mkdir(outpath.c_str(),07777);
-        cout << "Directory does not exist, creating... at " << outpath << endl;
+        std::cout << "Directory does not exist, creating... at " << outpath << endl;
     } else if(!checkDir && fragmentation == 1) {
-        cout << "Directory doesnt exist, so no community to load....exiting" << endl;
+        std::cout << "Directory doesnt exist, so no community to load....exiting" << endl;
         exit(0);
     }
 
@@ -425,11 +432,12 @@ int main(int argc, char *argv[]) {
             store2ColFiles(s_totalPop, i, totalPop);
             store2ColFiles(s_totalRich, i, totalRich);
             storeVec(s_totalPopSpec, totalPopSpec, i, 2);
+            storeVec(s_cellPop, cellPop, i, 2);
             storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
             storeConsumptionRate(s_consumptionRate,  cellPopSpec, i, traits);
 
             //Live output to console
-            cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
+            std::cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
 
         }
     }
@@ -450,7 +458,7 @@ int main(int argc, char *argv[]) {
     s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopSpec.close(), s_consumptionRate.close();
 
     // end timer FC
-    cout << "Elapsed(s)=" << since(start).count() << endl; 
+    std::cout << "Elapsed(s)=" << since(start).count() << endl; 
     return 0;
 
 }
@@ -657,14 +665,17 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
     double N; // Store abundance of focal species
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {if(cellPopSpec[cell][0][i] == ind){N = cellPopSpec[cell][1][i]; break;}}
 
+    // Find the set of species which are in the optimal set for focal species Si (ind)
+    optimalForaging(ind, cell, traits, cellPopSpec);
+    
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         // Stop focal species from eating or being eaten by itself
         if(cellPopSpec[cell][0][i] != ind) {
             int Sj = cellPopSpec[cell][0][i];
             // Per capita rate of consumption kg per ind per second x conversion efficiency
-            H += CE*consumptionRate(ind, Sj, T, 0, traits, cellPopSpec[cell][1][i]);
+            H += CE*consumptionRate(ind, Sj, 0, traits, cellPopSpec[cell][1][i]);
             // Per capita rate of conumpstion kg per ind per second x number of consumers 
-            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, T, 0, traits, 1); 
+            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, 0, traits, 1); 
         }
     }
 
@@ -725,7 +736,7 @@ int randomInd(vector <int> (&cellPopSpec)[numCells][2], int pop, int numSpec, in
         if (sum > threshold) {return cellPopSpec[cell][0][i];}
     }
     
-    cout << "Threshold for randomInd not hit, this is likely causing huge errors in results" << "\n";
+    std::cout << "Threshold for randomInd not hit, this is likely causing huge errors in results" << "\n";
     return 0;
 }
 
@@ -931,7 +942,7 @@ void Bin_recursive(int n, int j, int (&vec)[L]) { // It must be called setting j
 void ConvertToBinary(int n, int j, int (&vec)[L]) {
     int i;
     if(n >= pow(2,L)){
-        cout << "You have set the number of species greater than 2^" << L << endl;
+        std::cout << "You have set the number of species greater than 2^" << L << endl;
         exit (EXIT_FAILURE);
     }
     for (i=0; i<L; i++) {
@@ -978,13 +989,13 @@ int mutation(vector <int> (&cellPopSpec)[numCells][2], double prob, int chosenIn
 // Metabolic Theory Functions
 ///////////////////////
 
-double searchRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]) {
+double searchRate(int Si, int Sj, double E, double (&traits)[numSpec][2]) {
     
     double V0 = 0.33; double d0 = 1.62; 
     double a; double Mi = traits[Si][0];
     double Mj = traits[Sj][0];
 
-    a = 2*V0*d0*(pow(Mi, 0.63))*(pow(Mj, 0.21))*arrhenius(E, T);
+    a = 2*V0*d0*(pow(Mi, 0.63))*(pow(Mj, 0.21))*arrhenius(E);
 
     return a;
     
@@ -1002,29 +1013,29 @@ double attackProb(int Si, int Sj, double (&traits)[numSpec][2]) {
 
 }
 
-double handlingTime(int Si, int Sj, double T, double E, double (&traits)[numSpec][2]) {
+double handlingTime(int Si, int Sj, double E, double (&traits)[numSpec][2]) {
 
     double h0 = 1;
     double Rp = 0.1;
     double Mi = traits[Si][0];
     double Mj = traits[Sj][0];
 
-    double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2))*arrhenius(E, T);
+    double h = h0*pow(Mi, -0.75)*(1-exp(-(pow((Mj/Mi) - Rp, 2))/2))*arrhenius(E);
 
     return h;
 
 }
 
-double consumptionRate(int Si, int Sj, double T, double E, double (&traits)[numSpec][2], int Nj) {
+double consumptionRate(int Si, int Sj, double E, double (&traits)[numSpec][2], int Nj) {
 
-    double c = (searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*Nj*traits[Sj][0])/
-    (1 + (searchRate(Si, Sj, T, E, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, T, E, traits)*Nj));
+    double c = (searchRate(Si, Sj, E, traits)*attackProb(Si, Sj, traits)*Nj*traits[Sj][0])/
+    (1 + (searchRate(Si, Sj, E, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, E, traits)*Nj));
 
     return c;
 
 }
 
-double arrhenius(double E, double T) {
+double arrhenius(double E) {
 
     return pow(exp(1), -E/(k*(T+T0)));
 
@@ -1050,12 +1061,58 @@ void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells
                 if(cellPopSpec[i][0][j] != cellPopSpec[i][0][k]) {
                     stream << gen+1 << " " << i+1 << " " << cellPopSpec[i][0][j] + 1 << " " << traits[cellPopSpec[i][0][j]][0] << " " << cellPopSpec[i][1][j]
                     << " " << cellPopSpec[i][0][k] + 1 << " " << traits[cellPopSpec[i][0][k]][0] << " " << cellPopSpec[i][1][k] << " " << 
-                    searchRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits) << " " << attackProb(cellPopSpec[i][0][j], cellPopSpec[i][0][k], traits) << 
-                    " " << handlingTime(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits) << " " << 
-                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], T, 0, traits, cellPopSpec[i][1][k]) << "\n";
+                    searchRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits) << " " << attackProb(cellPopSpec[i][0][j], cellPopSpec[i][0][k], traits) << 
+                    " " << handlingTime(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits) << " " << 
+                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits, cellPopSpec[i][1][k]) << "\n";
                 }
             }
         }
     }
+
+}
+
+double profitability(int Si, int Sj, double (&traits)[numSpec][2]) {
+    
+    double Mj = traits[Sj][0];
+    double pij;
+
+    pij = (attackProb(Si, Sj, traits)*Mj)/handlingTime(Si, Sj, 0, traits);
+
+    return pij;
+
+}
+
+void optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int> cellPopSpec[numCells][2]) {
+
+    vector <double> profits[2];
+    int Sj;
+
+    // Calculate profitability of consumer Si feeding on
+    // each resource Sj
+    for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
+        Sj = cellPopSpec[cell][0][i]; 
+        // Don't calculate profitability for a species with itself
+        if(Si != Sj) {
+            profits[0].push_back(Sj);
+            profits[1].push_back(profitability(Si, Sj, traits));
+        }
+    }
+
+    std::cout << "Before sorting: " << endl;
+    for (int i = 0; i < profits[0].size(); i++) {
+        std::cout << profits[0][i] << " " << profits[1][i] << endl;
+    }
+
+    // Then sort from most profitable resource
+    // to least profitable resource species
+
+    std::sort(profits[0].begin(), profits[0].end(), sortcol);
+
+    std::cout << "After sorting: " << endl;
+    for (int i = 0; i < profits[0].size(); i++) {
+        std::cout << profits[0][i] << " " << profits[1][i] << endl;
+    }
+    
+    
 
 }
