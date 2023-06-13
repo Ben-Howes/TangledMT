@@ -30,7 +30,7 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1000000;                         // Number of time steps in the model
+const int t = 10000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -111,11 +111,12 @@ void storeVec(ofstream &stream, vector <int> vec[], int gen, int cols);
 void storeVecEnd(vector <int> vec[], int cols, string fileName, string outpath);
 void storeNum(int num, string fileName, string outpath);
 void storeParam(string fileName, string outpath);
-void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, double (&traits)[numSpec][2]);
+void storeCellPopSpec(ofstream &stream, vector <int> (&vec)[numCells][2], int gen, double (&traits)[numSpec][2]);
 
 void calculateTotalPopSpec(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&totalPopSpec)[2]);
 void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&cellPop)[2]);
-int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
+int calcCellPop(vector <int> (&cellPopSpec)[numCells][2], int cell);
+int getPop(int ind, int cell, vector <int> (&cellPopSpec)[numCells][2]);
 
 // Mutations
 int mutation(vector <int> (&cellPopSpec)[numCells][2], double prob, int chosenInd, mt19937& eng);
@@ -132,7 +133,8 @@ double getCellMass(int cell);
 double arrhenius(double E);
 void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2], int gen, double (&traits)[numSpec][2]);
 double profitability(int Si, int Sj, double (&traits)[numSpec][2]);
-void optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int> cellPopSpec[numCells][2]);
+vector <int> optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int> (&cellPopSpec)[numCells][2]);
+vector <int> findOptimalSet(int Si, int cell, vector <double> (&sortedProfits)[2], double (&traits)[numSpec][2]);
 
 ///////////////////////////////
 //          Templates        //
@@ -220,11 +222,6 @@ auto since(std::chrono::time_point<clock_t, duration_t> const& start)
 {
     return std::chrono::duration_cast<result_t>(clock_t::now() - start);
 }
-
-//For comparing 2'nd column order
-bool sortcol(const vector<int>& v1,const vector<int>& v2) { 
-     return v1[1] < v2[1]; 
-} 
 
 ///////////////////////////////
 // Main Tangled Nature Model //
@@ -556,7 +553,7 @@ void storeVecEnd(vector <int> vec[], int cols, string fileName, string outpath) 
 double dispersalProb(vector <int> (&cellPopSpec)[numCells][2],int Rfr, int cell, double probDeath, double probDisp) {
 
     double Nequ, pDispEff, cutOff, grad;
-    int pop = getPop(cellPopSpec, cell);
+    int pop = calcCellPop(cellPopSpec, cell);
     pDispEff = probDisp;
 
     cutOff = Rfr*(3+log10((1-probDeath)/probDeath));        // Cut off for density dependent linear, max is 47.5
@@ -591,7 +588,7 @@ vector <int> findValidCells(double (&distArray)[numCells][numCells], double dist
 void dispersal(vector <int> (&cellPopSpec)[numCells][2], double (&distArray)[numCells][numCells], 
 double (&disp)[numSpec], double prob, int cell, int numSpec, int &dispNum, mt19937& eng) {
 
-    int pop = getPop(cellPopSpec, cell);
+    int pop = calcCellPop(cellPopSpec, cell);
 
     if(pop > 0) { // Check cell isn't empty
 
@@ -663,19 +660,43 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
     double H = 0;
     double CE = 0.5; // Conversation efficiency
     double N; // Store abundance of focal species
-    for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {if(cellPopSpec[cell][0][i] == ind){N = cellPopSpec[cell][1][i]; break;}}
+    vector <int> optimalSet; // Store optimal set of resources
+    int Sj; // Store identities of non-focal species
+    int Nj; // Store abundance of non-focal species in the cell
 
-    // Find the set of species which are in the optimal set for focal species Si (ind)
-    optimalForaging(ind, cell, traits, cellPopSpec);
-    
-    for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
-        // Stop focal species from eating or being eaten by itself
-        if(cellPopSpec[cell][0][i] != ind) {
-            int Sj = cellPopSpec[cell][0][i];
+    // Only run the below if there is more than one species in the cell
+    // as species can't interact (feed) on themselves
+    if(cellPopSpec[cell][0].size() > 1) {
+
+        for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {if(cellPopSpec[cell][0][i] == ind){N = cellPopSpec[cell][1][i]; break;}}
+
+        // Find the set of species which are in the optimal set for focal species Si (ind)
+        optimalSet = optimalForaging(ind, cell, traits, cellPopSpec);
+
+        // Iterate over set finding consumption rate and summing for
+        // total consumption rate for focal species Si
+        for (int i = 0; i < optimalSet.size(); i++) {
+            int Sj = optimalSet[i];
             // Per capita rate of consumption kg per ind per second x conversion efficiency
-            H += CE*consumptionRate(ind, Sj, 0, traits, cellPopSpec[cell][1][i]);
-            // Per capita rate of conumpstion kg per ind per second x number of consumers 
-            H -= cellPopSpec[cell][1][i]*consumptionRate(Sj, ind, 0, traits, 1); 
+            H += CE*consumptionRate(ind, Sj, 0, traits, getPop(Sj, cell, cellPopSpec));
+        }
+
+        // Then need to find optimal set of resources for all other species in the cell
+        // if our focal species is in that set then the consumption rate of consumer Sj on focal species Si
+        // will be calculated and used as the loss term
+        for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
+            // Don't calculate optimal set for our focal species again
+            if(ind != cellPopSpec[cell][0][i]) {
+                Sj = cellPopSpec[cell][0][i];
+                Nj = cellPopSpec[cell][1][i];
+                optimalSet = optimalForaging(Sj, cell, traits, cellPopSpec);
+                for (int j = 0; j < optimalSet.size(); j++) {
+                    // Only include interactions with our focal species
+                    if(optimalSet[j] == ind) {
+                        H -= Nj*consumptionRate(Sj, ind, 0, traits, 1); 
+                    }              
+                }
+            }
         }
     }
 
@@ -686,7 +707,7 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
 void reproduction(vector <int> (&cellPopSpec)[numCells][2], 
 int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng) {
 
-    int pop = getPop(cellPopSpec, cell);
+    int pop = calcCellPop(cellPopSpec, cell);
     double cellMass; double B0 = 4.15*pow(10, -8);
 
     if(pop > 0) {
@@ -708,7 +729,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
 
 void kill(vector <int> (&cellPopSpec)[numCells][2], double prob, int cell, int numSpec, mt19937& eng) {
     
-    int pop = getPop(cellPopSpec, cell);
+    int pop = calcCellPop(cellPopSpec, cell);
 
     if(pop > 0){ 
 
@@ -888,7 +909,7 @@ void calculateTotalPopSpec(vector <int> (&cellPopSpec)[numCells][2], vector <int
     }
 }
 
-int getPop(vector <int> (&cellPopSpec)[numCells][2], int cell) {
+int calcCellPop(vector <int> (&cellPopSpec)[numCells][2], int cell) {
 
     int pop = 0;
 
@@ -903,7 +924,7 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
     cellPop[0].clear(); cellPop[1].clear();
 
     for (int i = 0; i < numCells; i++) {
-        int pop = getPop(cellPopSpec, i);
+        int pop = calcCellPop(cellPopSpec, i);
         if(pop > 0) {
             cellPop[0].push_back(i);
             cellPop[1].push_back(pop);
@@ -911,7 +932,7 @@ void calculateCellPop(vector <int> (&cellPopSpec)[numCells][2], vector <int> (&c
     }
 }
 
-void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, double (&traits)[numSpec][2]) {
+void storeCellPopSpec(ofstream &stream, vector <int> (&vec)[numCells][2], int gen, double (&traits)[numSpec][2]) {
 
     for (int i = 0; i < numCells; i++) {
         for (int j = 0; j < vec[i][0].size(); j++) {
@@ -925,6 +946,20 @@ void storeCellPopSpec(ofstream &stream, vector <int> vec[numCells][2], int gen, 
     }
 }
 
+int getPop(int ind, int cell, vector <int> (&cellPopSpec)[numCells][2]) {
+
+    int pop;
+
+    for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
+        if(ind == cellPopSpec[cell][0][i]) {
+            pop = cellPopSpec[cell][1][i];
+            break;
+        }
+    }
+    
+    return pop;
+
+}
 
 ///////////////////////
 // Mutation functions
@@ -1056,15 +1091,17 @@ double getCellMass(int cell) {
 void storeConsumptionRate(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2], int gen, double (&traits)[numSpec][2]) {
 
     for (int i = 0; i < numCells; i++) {
-        for (int j = 0; j < cellPopSpec[i][0].size(); j++) {
-            for (int k = 0; k < cellPopSpec[i][0].size(); k++) {
-                if(cellPopSpec[i][0][j] != cellPopSpec[i][0][k]) {
-                    stream << gen+1 << " " << i+1 << " " << cellPopSpec[i][0][j] + 1 << " " << traits[cellPopSpec[i][0][j]][0] << " " << cellPopSpec[i][1][j]
-                    << " " << cellPopSpec[i][0][k] + 1 << " " << traits[cellPopSpec[i][0][k]][0] << " " << cellPopSpec[i][1][k] << " " << 
-                    searchRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits) << " " << attackProb(cellPopSpec[i][0][j], cellPopSpec[i][0][k], traits) << 
-                    " " << handlingTime(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits) << " " << 
-                    consumptionRate(cellPopSpec[i][0][j], cellPopSpec[i][0][k], 0, traits, cellPopSpec[i][1][k]) << "\n";
-                }
+        for (int j = 0; j < cellPopSpec[i][0].size(); j++) {         
+            // Find the set of species which are in the optimal set for focal species Si (ind)
+            vector <int> optimalSet = optimalForaging(cellPopSpec[i][0][j], i, traits, cellPopSpec);
+            // Iterate over set and save consumption rate
+            for (int k = 0; k < optimalSet.size(); k++) {
+                int Sj = optimalSet[k];
+                stream << gen+1 << " " << i+1 << " " << cellPopSpec[i][0][j] + 1 << " " << traits[cellPopSpec[i][0][j]][0] << " " << cellPopSpec[i][1][j]
+                << " " << (Sj + 1) << " " << traits[Sj][0] << " " << getPop(Sj, i, cellPopSpec) << " " << 
+                searchRate(cellPopSpec[i][0][j], Sj, 0, traits) << " " << attackProb(cellPopSpec[i][0][j], Sj, traits) << 
+                " " << handlingTime(cellPopSpec[i][0][j], Sj, 0, traits) << " " << 
+                consumptionRate(cellPopSpec[i][0][j], Sj, 0, traits, getPop(Sj, i, cellPopSpec)) << "\n";;
             }
         }
     }
@@ -1082,10 +1119,77 @@ double profitability(int Si, int Sj, double (&traits)[numSpec][2]) {
 
 }
 
-void optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int> cellPopSpec[numCells][2]) {
+bool compareCols(const std::vector<double>& col1, const std::vector<double>& col2) {
+    return col1[1] < col2[1];
+}
+
+void sortedCols(vector <double> (&profits)[2], vector <double> (&sortedProfits)[2]) {
+
+    // Creating a vector of indices to track the sorting order
+    std::vector<int> indices(profits[0].size());
+    for (int i = 0; i < indices.size(); i++) {
+        indices[i] = i;
+    }
+
+    // Sorting the indices based on the values in profits[1]
+    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+        return profits[1][a] > profits[1][b];
+    });
+
+    // Rearranging both columns based on the sorted indices
+
+    for (const auto& index : indices) {
+        sortedProfits[0].push_back(profits[0][index]);
+        sortedProfits[1].push_back(profits[1][index]);
+    }
+
+}
+
+vector <int> findOptimalSet(int Si, int cell, vector <double> (&sortedProfits)[2], double (&traits)[numSpec][2]) {
+
+    int Sj;
+    double OF = 0, OFnew = 0;
+    vector <int> optimalSet;
+    double upper = 0; double lower = 0;
+
+    // We run through each set of species comparing against the previous set
+    // e.g set 1 is just Sj = 1, then set 2 is Sj = {1,2}, set 3 is Sj = {1,2,3} etc
+    // To aid with computation time we simply add the additions from the new set to the raw values from the old set
+    // e.g for set 2 we add upper and lower for Si = 2, to the upper and lower results for Si = 1.
+    for (int i = 0; i < sortedProfits[0].size(); i++) {
+        OF = OFnew;
+
+        Sj = sortedProfits[0][i];
+        upper += searchRate(Si, Sj, 0, traits)*attackProb(Si, Sj, traits)*getPop(Sj, cell, cellPopSpec)*traits[Sj][0];
+        lower += searchRate(Si, Sj, 0, traits)*attackProb(Si, Sj, traits)*handlingTime(Si, Sj, 0, traits)*getPop(Sj, cell, cellPopSpec);
+
+        // Calculate the consumption rate with this set of resource species
+        OFnew = upper/(1 + lower);
+
+        // If the OF (optimal foraging) calculated prior to the addition of this species
+        // is greater than the OF with this species, stop running, we have found the optimal set
+        // Save this as the number of rows down the sortedProfit vector we've gone - 1, as the most recent
+        // species added doesn't help
+        // And trim sortedProfits to just this profitable set of species
+
+        if(OFnew < OF | i == (sortedProfits[0].size() - 1)) {
+            int optimal = i;
+            for (int j = 0; j <= optimal; j++) { optimalSet.push_back(sortedProfits[0][j]);}
+            break;
+        }
+    }    
+
+    return optimalSet;
+
+}
+
+vector <int> optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int> (&cellPopSpec)[numCells][2]) {
 
     vector <double> profits[2];
+    vector<double> sortedProfits[2];
     int Sj;
+    double OF, OFnew;
+    vector <int> optimalSet;
 
     // Calculate profitability of consumer Si feeding on
     // each resource Sj
@@ -1098,21 +1202,13 @@ void optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int
         }
     }
 
-    std::cout << "Before sorting: " << endl;
-    for (int i = 0; i < profits[0].size(); i++) {
-        std::cout << profits[0][i] << " " << profits[1][i] << endl;
-    }
+    // Sort in descending order of profitability
+    // Store output in sortedProfits
+    sortedCols(profits, sortedProfits);
 
-    // Then sort from most profitable resource
-    // to least profitable resource species
+    // Next we need to optimise the optimal foraging equation
+    optimalSet = findOptimalSet(Si, cell, sortedProfits, traits); 
 
-    std::sort(profits[0].begin(), profits[0].end(), sortcol);
-
-    std::cout << "After sorting: " << endl;
-    for (int i = 0; i < profits[0].size(); i++) {
-        std::cout << profits[0][i] << " " << profits[1][i] << endl;
-    }
-    
-    
+    return optimalSet;
 
 }
