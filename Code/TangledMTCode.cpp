@@ -30,7 +30,7 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1000000;                         // Number of time steps in the model
+const int t = 20000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -220,11 +220,6 @@ auto since(std::chrono::time_point<clock_t, duration_t> const& start)
 {
     return std::chrono::duration_cast<result_t>(clock_t::now() - start);
 }
-
-//For comparing 2'nd column order
-bool sortcol(const vector<int>& v1,const vector<int>& v2) { 
-     return v1[1] < v2[1]; 
-} 
 
 ///////////////////////////////
 // Main Tangled Nature Model //
@@ -666,7 +661,7 @@ double calculateInteractions(vector <int> (&cellPopSpec)[numCells][2], double (&
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {if(cellPopSpec[cell][0][i] == ind){N = cellPopSpec[cell][1][i]; break;}}
 
     // Find the set of species which are in the optimal set for focal species Si (ind)
-    optimalForaging(ind, cell, traits, cellPopSpec);
+    // optimalForaging(ind, cell, traits, cellPopSpec);
     
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         // Stop focal species from eating or being eaten by itself
@@ -1097,22 +1092,4 @@ void optimalForaging(int Si, int cell, double (&traits)[numSpec][2], vector <int
             profits[1].push_back(profitability(Si, Sj, traits));
         }
     }
-
-    std::cout << "Before sorting: " << endl;
-    for (int i = 0; i < profits[0].size(); i++) {
-        std::cout << profits[0][i] << " " << profits[1][i] << endl;
-    }
-
-    // Then sort from most profitable resource
-    // to least profitable resource species
-
-    std::sort(profits[0].begin(), profits[0].end(), sortcol);
-
-    std::cout << "After sorting: " << endl;
-    for (int i = 0; i < profits[0].size(); i++) {
-        std::cout << profits[0][i] << " " << profits[1][i] << endl;
-    }
-    
-    
-
 }
