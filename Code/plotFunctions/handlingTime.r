@@ -47,3 +47,23 @@ ggplot(masses, aes(log10(mi),log10(mj), fill = log10(Hij))) +
     legend.title = element_text(vjust = 1))
 
 ggsave(filename = "handlingTime.png", width = 10, height = 10)
+
+## Plot figure with 3 different consumer masses
+masses = masses %>% filter(mi %in% c(min(masses$mi), masses[nrow(masses)/2, ]$mj, max(masses$mi))) %>%
+    mutate(label = case_when(mi == min(masses$mi) ~ "Small Consumer", mi == masses[nrow(masses)/2, ]$mj ~ "Medium Consumer",
+    mi == max(masses$mi) ~ "Large Consumer"))
+
+handlingTime = ggplot(masses, aes(log10(mj), log10(Hij), col = as.factor(round(log10(mi), 1)))) +
+    geom_line(linewidth = 5) +
+    theme_classic() +
+    labs(x = "Log10(Resource Body Mass)", y = "Log10(Handling Time)", col = "Log10(Consumer Body Mass)") +
+    theme(strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    text = element_text(size = 30),
+    legend.position = "bottom") +
+    scale_x_continuous(n.breaks = 8) +
+    scale_colour_viridis_d()
+
+handlingTime
+
+ggsave(filename = "indHandlingTime.png", plot = handlingTime,  width = 18, height = 10)
