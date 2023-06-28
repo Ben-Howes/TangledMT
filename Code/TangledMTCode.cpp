@@ -30,18 +30,18 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 200000;                         // Number of time steps in the model
+const int t = 50000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
-double probImm = 0.01;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
+double probImm = 0;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
-float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
+float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
 double dispDist = 1;                         // Store dispersal distance
-double probMut = 0.0001;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
+double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 
 // Metabolic theory variables
-double ppProb = 1;                       // Sets proportion of species that are primary producers
+double ppProb = 0.1;                       // Sets proportion of species that are primary producers
 double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
 double k = 8.6173*(10^-5);                  // Boltzmann constant
 
@@ -82,7 +82,6 @@ static double T0 = 273.15;                        // 0 celsius in Kelvin - used 
 // Initialise functions //
 //////////////////////////
 
-void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng);
 void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProb);
 double uniform(mt19937& eng);
 double gaussian(mt19937& eng);
@@ -640,7 +639,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
     int Ni; // Store number of individuals of same species as focal individual in cell
     int Sj; // Store identities of non-focal species
     int Nj; // Store abundance of non-focal species in the cell
-    int K0 = 10; // Weighting of carrying capacity of each species Ki.
+    int K0 = 5; // Weighting of carrying capacity of each primary producing species Ki.
 
     // Only run the below if there is more than one species in the cell
     // as species can't interact (feed) on themselves
@@ -673,13 +672,11 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
         for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
             Sj = cellPopSpec[cell][0][i];
             // Check if primary producer as primary producers can't consume other species
-            if(traits[Sj][1] == 0) {
+            // Also check if it's it's the same species as the focal species
+            // as species are not cannibalistic
+            if(traits[Sj][1] == 0 && Si != Sj) {
                 Nj = cellPopSpec[cell][1][i];
-                // If the focal individual is the same species as the chosen individual
-                // then don't calculate interactions (no cannibalism)
-                if(Si != Sj) {
-                    H -= Nj*consumptionRate(Sj, Si, 0, traits, Ni);
-                }
+                H -= Nj*consumptionRate(Sj, Si, 0, traits, Ni);
             }
         }
 
@@ -703,7 +700,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
         chosenSpec = cellPopInd[cell][0][chosenIndex];
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec) - 
-            (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75)); // Rfr 10 chosen as arbitrary carrying capactiy
+            (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75));
             // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = 1/(1 + exp(-P0*(H - 0.5)));
@@ -804,33 +801,6 @@ double gaussian(mt19937& eng) {
     normalNum = 0.25*(sqrt(-2.0 * log(u1)) * cos(two_pi * u2)); // Create normally distributed vales with mean 0 and sd 0.25
     return normalNum;
 }
-
-void createJMatrix(double (&J)[numSpec][numSpec], double probInt, mt19937& eng) {
-    for (int i = 0; i < numSpec; i++){
-        for (int j = 0; j <= i; j++) {
-            if(i == j ) {
-                J[i][j] = 0;
-            } else if (uniform(eng) <= probInt){
-                J[i][j] = 0;
-                J[j][i] = 0;
-            }
-            else {
-                J[i][j] = gaussian(eng);
-                double oppoInt = gaussian(eng);
-                if(J[i][j] > 0 & oppoInt < 0) {
-                    J[j][i] = oppoInt;
-                } else if (J[i][j] > 0 & oppoInt > 0) {
-                    J[j][i] = -oppoInt;
-                } else if (J[i][j] < 0 & oppoInt < 0) {
-                    J[j][i] = -oppoInt;
-                } else if (J[i][j] < 0 & oppoInt > 0) {
-                    J[j][i] = oppoInt;
-                }
-            }
-
-        } 
-    }
-} 
 
 void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProb) {
     std::lognormal_distribution<double> distribution(-1.0, 1.0);
@@ -1121,9 +1091,9 @@ void storeConsumptionRate(ofstream &stream, vector <double> (&cellPopInd)[numCel
                     int Sj = cellPopSpec[i][0][k];
                     if(Si != Sj) {
                         stream << gen+1 << " " << i+1 << " " << Si + 1 << " " << traits[Si][0] << " " << 
-                        (Sj + 1) << " " << traits[Sj][0] << " " << cellPopSpec[i][1][k] << " " << 
-                        searchRate(Si, Sj, 0, traits) << " " << attackProb(Si, Sj, traits) << 
-                        " " << handlingTime(Si, Sj, 0, traits) << " " << 
+                        cellPopSpec[i][1][j] << " " << (Sj + 1) << " " << traits[Sj][0] << 
+                        " " << cellPopSpec[i][1][k] << " " << searchRate(Si, Sj, 0, traits) << " " << 
+                        handlingTime(Si, Sj, 0, traits) << " " << 
                         consumptionRate(Si, Sj, 0, traits, cellPopSpec[i][1][k]) << "\n";
                     }
                 }
