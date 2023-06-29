@@ -30,18 +30,18 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 8;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 256;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 50000;                         // Number of time steps in the model
+const int t = 500000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
-double probImm = 0;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
+double probImm = 0.001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
 double dispDist = 1;                         // Store dispersal distance
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 
 // Metabolic theory variables
-double ppProb = 0.1;                       // Sets proportion of species that are primary producers
+double ppProb = 0.2;                       // Sets proportion of species that are primary producers
 double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
 double k = 8.6173*(10^-5);                  // Boltzmann constant
 
@@ -115,7 +115,6 @@ void storeCellPopSpec(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2]
 
 void calculateTotalPopSpec(vector <double> (&cellPopInd)[numCells][4], vector <int> (&totalPopSpec)[2]);
 void calculateCellPop(vector <double> (&cellPopInd)[numCells][4], vector <int> (&cellPop)[2]);
-int getPop(int ind, int cell, vector <double> (&cellPopInd)[numCells][4]);
 void calculateCellPopSpec(vector <double> (&cellPopInd)[numCells][4], vector <int> (&cellPopSpec)[numCells][2]);
 
 // Mutations
@@ -632,14 +631,20 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
 double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int ind,
     vector <int> (&cellPopSpec)[numCells][2]) {
 
-    double H = 0;
+    double H = 0; // Store energy state after interactions
     double CE = 0.5; // Conversation efficiency
-    double N; // Store abundance of focal species
     int Si = cellPopInd[cell][0][ind]; // Store identity of the focal species
     int Ni; // Store number of individuals of same species as focal individual in cell
     int Sj; // Store identities of non-focal species
     int Nj; // Store abundance of non-focal species in the cell
-    int K0 = 5; // Weighting of carrying capacity of each primary producing species Ki.
+    double Ii = 0; // Interference term for focal individual i
+    double I0 = 0.005; // Constant affecting the influence of interference
+
+    double Xi; // Biomass of population of focal species i in cell C (primary producers onlu)
+    double Ki; // Carrying capacity of population of focal individual i (primary prodiucers onlu)
+    double K0 = 10; // Weighting of carrying capacity of each primary producing species Ki.
+    double ri; // Intrinsic growth rate of focal individual i (for primary producers only)
+    double r0 = 10; // Scaling of intrinsic growth rate (primary producers onlu)
 
     // Only run the below if there is more than one species in the cell
     // as species can't interact (feed) on themselves
@@ -660,12 +665,15 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
                     H += CE*Nj*consumptionRate(Si, Sj, 0, traits, Nj);
                 }
             }
+        // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
+        Ii = Ni*searchRate(Si, Si, 0, traits);
+        H -= I0*Ii;
         } else {
-            double Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
-            double Ki = pow(cellPopInd[cell][1][ind], 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
-            Ki = Ki*K0; // Weight by K0
+            Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
+            Ki = K0*pow(cellPopInd[cell][1][ind], 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
+            ri = r0*pow(cellPopInd[cell][1][ind], -0.15); // Intrinsic growth rate
             // Calculate growth rate of our primary producer as intrinsic growth rate*mass*density function including species specific carrying capacity
-            H += pow(cellPopInd[cell][1][ind], -0.15)*Xi*(1-(Xi/Ki));
+            H += ri*Xi*(1-(Xi/Ki));
         }
 
         // Loop over consumption of focal species
@@ -919,20 +927,6 @@ void storeCellPopSpec(ofstream &stream, vector <int> (&cellPopSpec)[numCells][2]
             traits[cellPopSpec[i][0][j]][0] << " " << traits[cellPopSpec[i][0][j]][1] << "\n";
         }
     }
-}
-
-int getPop(int spec, int cell, vector <double> (&cellPopInd)[numCells][4]) {
-
-    int pop = 0;
-
-    for (int i = 0; i < cellPopInd[cell][0].size(); i++) {
-        if(spec == cellPopInd[cell][0][i]) {
-            pop += 1;
-        }
-    }
-    
-    return pop;
-
 }
 
 ///////////////////////

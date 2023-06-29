@@ -18,7 +18,7 @@ cellPopSpec = read_delim("cellPopSpec.txt", col_names = FALSE) %>%
 totalPopSpec = read_delim("totalPopSpec.txt", col_names = FALSE) %>%
     rename(g = 1, s = 2, n = 3)
 traits = read_delim("../traits.txt", col_names = FALSE) %>%
-    rename(M = 1, pp = 2) %>% dplyr::select(M) %>%
+    rename(M = 1, pp = 2) %>%
     add_column(.before = "M", s = 1:nrow(.))
 
 ## Plot trait distribution of species pool
@@ -46,7 +46,7 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 20), 
     theme(text = element_text(size = 30),
     axis.text.x=element_blank()) +
     labs(x = "Species", y = "Abundance") +
-    scale_y_continuous(expand = c(0, 0), limits = c(0, 50020)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 7020)) +
     geom_text(aes(label = round(log10(M), 1)), vjust = -0.25, size = 7.5)
 
 ## Does the abundance of species follow Damuth’s law? (n = M^-0.75)
@@ -70,18 +70,19 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g)), aes(log10(M), log10(n
     stat_poly_eq(label.y = 0.9, label.x = 0.9, size = 10)   
 
 ## Plot abundaunce of species over time, including their mass
-ggplot(filter(totalPopSpec, n > 20), aes(g, n, col = log10(M), group = log10(M))) +
+ggplot(filter(totalPopSpec, n > 20), aes(g, n, col = log10(M), group = log10(M), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
-    labs(x = "Time", y = "Abundaunce", col = "Log10(Body \nMass)") +
+    labs(x = "Time", y = "Abundaunce", col = "Log10(Body \nMass)", 
+    linetype = "Primary Producer") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c()
 
 ## Biomass contribution by species over time
-ggplot(filter(totalPopSpec, n > 5), aes(g, n*M, col = log10(M), group = log10(M))) +
+ggplot(filter(totalPopSpec, n > 5), aes(g, n*M, col = log10(M), group = log10(M), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
-    labs(x = "Time", y = "Biomass", col = "Log10(Body \nMass)") +
+    labs(x = "Time", y = "Biomass", col = "Log10(Body \nMass)", linetype = "Primary Producer") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c()
 
@@ -145,7 +146,7 @@ consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE
 ## Why are some species so abundant?
 cellPopSpec %>% filter(g == max(totalPopSpec$g) & c == 1) %>% arrange(-n)
 
-consumption %>% filter(g == max(consumption$g) & Si == 229 & c == 1) %>% arrange(-eNjJij)
+consumption %>% filter(g == max(consumption$g) & c == 1) %>% arrange(-eNjJij)
 
 consumption %>% filter(g == max(consumption$g) & Sj == 229 & c == 1) %>% arrange(-NiJij) %>% print(w = 100)
 
