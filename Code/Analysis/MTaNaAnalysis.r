@@ -6,7 +6,7 @@
 library(tidyverse)
 library(ggpmisc) ## stat_poly
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/InitialMTaNaPP/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_3/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -18,7 +18,7 @@ cellPopSpec = read_delim("cellPopSpec.txt", col_names = FALSE) %>%
 totalPopSpec = read_delim("totalPopSpec.txt", col_names = FALSE) %>%
     rename(g = 1, s = 2, n = 3)
 traits = read_delim("../traits.txt", col_names = FALSE) %>%
-    rename(M = 1, pp = 2) %>% dplyr::select(M) %>%
+    rename(M = 1, pp = 2) %>%
     add_column(.before = "M", s = 1:nrow(.))
 
 ## Plot trait distribution of species pool
@@ -39,19 +39,15 @@ ggplot(totalPop, aes(g, n)) +
     labs(x = "Time", y = "Total Population") +
     theme(text = element_text(size = 30))
 
-ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/totalPop.png"), width = 18, height = 10)
-
 ## Plot SAD including mass over species
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 25), aes(fct_rev(fct_reorder(as.factor(s), n)), n)) +
+ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 20), aes(fct_rev(fct_reorder(as.factor(s), n)), n)) +
     geom_col() +
     theme_classic() +
     theme(text = element_text(size = 30),
     axis.text.x=element_blank()) +
     labs(x = "Species", y = "Abundance") +
-    scale_y_continuous(expand = c(0, 0), limits = c(0, 1020)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 7020)) +
     geom_text(aes(label = round(log10(M), 1)), vjust = -0.25, size = 7.5)
-
-ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/SAD.png"), width = 18, height = 10)
 
 ## Does the abundance of species follow Damuth’s law? (n = M^-0.75)
 ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), aes(n, N)) +
@@ -73,21 +69,20 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g)), aes(log10(M), log10(n
     stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) +
     stat_poly_eq(label.y = 0.9, label.x = 0.9, size = 10)   
 
-ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/dalmuthLaw.png"), width = 18, height = 10)
-
 ## Plot abundaunce of species over time, including their mass
-ggplot(filter(totalPopSpec, n > 20), aes(g, n, col = log10(M), group = log10(M))) +
+ggplot(filter(totalPopSpec, n > 20), aes(g, n, col = log10(M), group = log10(M), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
-    labs(x = "Time", y = "Abundaunce", col = "Log10(Body \nMass)") +
+    labs(x = "Time", y = "Abundaunce", col = "Log10(Body \nMass)", 
+    linetype = "Primary Producer") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c()
 
 ## Biomass contribution by species over time
-ggplot(filter(totalPopSpec, n > 5), aes(g, n*M, col = log10(M), group = log10(M))) +
+ggplot(filter(totalPopSpec, n > 5), aes(g, n*M, col = log10(M), group = log10(M), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
-    labs(x = "Time", y = "Biomass", col = "Log10(Body \nMass)") +
+    labs(x = "Time", y = "Biomass", col = "Log10(Body \nMass)", linetype = "Primary Producer") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c()
 
@@ -138,6 +133,22 @@ ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill 
     theme(text = element_text(size = 30),
     axis.text.y = element_blank()) + 
     scale_fill_viridis_c()
+
+### Analyse consumption data
+consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE) %>%
+    rename(g = 1, c = 2, Si = 3, Mi = 4, Ni = 5, Sj = 6, Mj = 7, Nj = 8, aij = 9, hij = 10, Jij = 11) %>%
+    mutate(eNjJij = 0.5*Nj*Jij, NiJij = Ni*Jij)
+
+## NjJij = consumption rate of i feeding on j when i is the focal individual/species (population of i is one)
+## NiJij = consumption rate of i feeding on j, when j is the focal individual/species (population of j is one)
+## Confirmed in MTaNa that this is correct
+
+## Why are some species so abundant?
+cellPopSpec %>% filter(g == max(totalPopSpec$g) & c == 1) %>% arrange(-n)
+
+consumption %>% filter(g == max(consumption$g) & c == 1) %>% arrange(-eNjJij)
+
+consumption %>% filter(g == max(consumption$g) & Sj == 229 & c == 1) %>% arrange(-NiJij) %>% print(w = 100)
 
 ###############################
 ## Food Web
