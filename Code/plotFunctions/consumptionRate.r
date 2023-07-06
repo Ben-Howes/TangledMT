@@ -22,7 +22,7 @@ calculateSearchRate = function(mi, mj) {
 
 calculateAttackProb = function(mi, mj) {
 
-    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^0.2
+    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^5
 
     return(Aij)
 

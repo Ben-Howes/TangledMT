@@ -18,7 +18,7 @@ T0 = 293.15 ## 0 celsius in Kelvin
 E = 0 ## Activation energy
 
 temp = 20 ## teperatures in celsius
-masses = seq(log10(0.0000001), log10(1000000), length.out = 100)
+masses = seq(log10(0.01), log10(100), length.out = 100)
 masses = 10^masses
 masses = expand.grid(masses, masses, temp) %>% rename("mi" = 1, "mj" = 2, "T" = 3)
 
@@ -66,4 +66,4 @@ handlingTime = ggplot(masses, aes(log10(mj), log10(Hij), col = as.factor(round(l
 
 handlingTime
 
-ggsave(filename = "indHandlingTime.png", plot = handlingTime,  width = 18, height = 10)
+ggsave(filename = "indHandlingTime.pdf", plot = handlingTime,  width = 18, height = 10)

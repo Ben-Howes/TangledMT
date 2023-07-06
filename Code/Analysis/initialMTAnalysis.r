@@ -39,7 +39,7 @@ ggplot(totalPop, aes(g, n)) +
     labs(x = "Time", y = "Total Population") +
     theme(text = element_text(size = 30))
 
-ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/totalPop.png"), width = 18, height = 10)
+ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/totalPop.pdf"), width = 18, height = 10)
 
 ## Plot SAD including mass over species
 ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 25), aes(fct_rev(fct_reorder(as.factor(s), n)), n)) +
@@ -48,14 +48,14 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 25), 
     theme(text = element_text(size = 30),
     axis.text.x=element_blank()) +
     labs(x = "Species", y = "Abundance") +
-    scale_y_continuous(expand = c(0, 0), limits = c(0, 1020)) +
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 300)) +
     geom_text(aes(label = round(log10(M), 1)), vjust = -0.25, size = 7.5)
 
-ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/SAD.png"), width = 18, height = 10)
+ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/SAD.pdf"), width = 18, height = 10)
 
 ## Does the abundance of species follow Damuth’s law? (n = M^-0.75)
 ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), aes(n, N)) +
-    geom_point() +
+    geom_point(size = 5) +
     geom_smooth(method = "lm", col = "red", linewidth = 2) +
     theme_classic() +
     labs(x = "Abundaunce in MTaNa", y = bquote("Predicted Abundaunce"~(M^-0.75))) +
@@ -73,7 +73,7 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g)), aes(log10(M), log10(n
     stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) +
     stat_poly_eq(label.y = 0.9, label.x = 0.9, size = 10)   
 
-ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/dalmuthLaw.png"), width = 18, height = 10)
+ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaPP/dalmuthLaw.pdf"), width = 18, height = 10)
 
 ## Plot abundaunce of species over time, including their mass
 ggplot(filter(totalPopSpec, n > 20), aes(g, n, col = log10(M), group = log10(M))) +

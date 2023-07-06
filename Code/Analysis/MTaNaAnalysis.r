@@ -5,8 +5,9 @@
 
 library(tidyverse)
 library(ggpmisc) ## stat_poly
+library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_3/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_7/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -39,19 +40,22 @@ ggplot(totalPop, aes(g, n)) +
     labs(x = "Time", y = "Total Population") +
     theme(text = element_text(size = 30))
 
-## Plot SAD including mass over species
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 20), aes(fct_rev(fct_reorder(as.factor(s), n)), n)) +
+# ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/totalPop.pdf"), width = 18, height = 10)
+
+## Plot SAD but with mass
+ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 25), aes(as.factor(round(log10(M), 1)), log10(n), fill = as.factor(pp))) +
     geom_col() +
     theme_classic() +
-    theme(text = element_text(size = 30),
-    axis.text.x=element_blank()) +
-    labs(x = "Species", y = "Abundance") +
-    scale_y_continuous(expand = c(0, 0), limits = c(0, 7020)) +
-    geom_text(aes(label = round(log10(M), 1)), vjust = -0.25, size = 7.5)
+    theme(text = element_text(size = 30)) +
+    labs(x = "Log10(Mass)", y = "Log10(Abundance", fill = "Primary\nProducer") +
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_fill_viridis_d()
+
+# ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/SAD.pdf"), width = 18, height = 10)
 
 ## Does the abundance of species follow Damuth’s law? (n = M^-0.75)
 ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), aes(n, N)) +
-    geom_point() +
+    geom_point(size = 5) +
     geom_smooth(method = "lm", col = "red", linewidth = 2) +
     theme_classic() +
     labs(x = "Abundaunce in MTaNa", y = bquote("Predicted Abundaunce"~(M^-0.75))) +
@@ -60,7 +64,7 @@ ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), 
     stat_poly_eq(label.y = 0.9, size = 10)   
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g)), aes(log10(M), log10(n),)) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 5), aes(log10(M), log10(n),)) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", col = "red", linewidth = 2) +
     theme_classic() +
@@ -70,21 +74,15 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g)), aes(log10(M), log10(n
     stat_poly_eq(label.y = 0.9, label.x = 0.9, size = 10)   
 
 ## Plot abundaunce of species over time, including their mass
-ggplot(filter(totalPopSpec, n > 20), aes(g, n, col = log10(M), group = log10(M), linetype = as.factor(pp))) +
+ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = log10(M), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
-    labs(x = "Time", y = "Abundaunce", col = "Log10(Body \nMass)", 
+    labs(x = "Time", y = "Log10(Abundaunce)", col = "Log10(Body \nMass)", 
     linetype = "Primary Producer") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c()
 
-## Biomass contribution by species over time
-ggplot(filter(totalPopSpec, n > 5), aes(g, n*M, col = log10(M), group = log10(M), linetype = as.factor(pp))) +
-    geom_line(linewidth = 2) +
-    theme_classic() +
-    labs(x = "Time", y = "Biomass", col = "Log10(Body \nMass)", linetype = "Primary Producer") +
-    theme(text = element_text(size = 30)) +
-    scale_colour_viridis_c()
+# ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/SpeciesAbundanceTime.pdf"), width = 18, height = 10)
 
 ### Change in mean mass over time, calculated as (mass*abundance)/abundance
 avgMass = totalPopSpec %>% 
@@ -128,6 +126,7 @@ rasterDat = cellPopSpec %>% filter(s %in% rasterDat$s)
 
 ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill = log10(mass))) + 
     geom_tile() +
+    facet_rep_wrap(. ~ pp) +
     theme_classic() +
     labs(x = "Time", y = "Species", fill = "Log10(Body Mass)") +
     theme(text = element_text(size = 30),
@@ -136,45 +135,48 @@ ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill 
 
 ### Analyse consumption data
 consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE) %>%
-    rename(g = 1, c = 2, Si = 3, Mi = 4, Ni = 5, Sj = 6, Mj = 7, Nj = 8, aij = 9, hij = 10, Jij = 11) %>%
-    mutate(eNjJij = 0.5*Nj*Jij, NiJij = Ni*Jij)
+    rename(g = 1, c = 2, Si = 3, Mi = 4, Ni = 5, Sj = 6, Mj = 7, Nj = 8, aij = 9, Aij = 10, hij = 11, Jij = 12) %>%
+    mutate(NjJij = Nj*Jij, eNjJij = 0.5*Nj*Jij, NiJij = Ni*Jij)
 
 ## NjJij = consumption rate of i feeding on j when i is the focal individual/species (population of i is one)
 ## NiJij = consumption rate of i feeding on j, when j is the focal individual/species (population of j is one)
 ## Confirmed in MTaNa that this is correct
 
-## Why are some species so abundant?
-cellPopSpec %>% filter(g == max(totalPopSpec$g) & c == 1) %>% arrange(-n)
+## Calculate H for each time step for each species
+gain = consumption %>% group_by(g, c, Si) %>% summarise(gain = sum(eNjJij))
+loss = consumption %>% group_by(g, c, Sj) %>% summarise(loss = sum(NiJij))
+z = consumption %>% distinct(Si, Mi) %>% mutate(z = 0.1*Mi^0.75)
+density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.005*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
-consumption %>% filter(g == max(consumption$g) & c == 1) %>% arrange(-eNjJij)
+joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>% left_join(density) %>%
+    mutate(H = gain - loss - NiJii - z) %>% mutate(HM = H/Mi)
 
-consumption %>% filter(g == max(consumption$g) & Sj == 229 & c == 1) %>% arrange(-NiJij) %>% print(w = 100)
+ggplot(filter(joined, Mi > 10), aes(g, HM, col = Mi)) +
+    geom_point(size = 5) +
+    theme_classic() +
+    scale_colour_viridis_c() +
+    labs(x = "Time", y = "H/Mass of Consumer") +
+    theme(text = element_text(size = 30)) +
+    ylim(-50, 50)
+
+joined %>% filter(Mi > 10)
 
 ###############################
 ## Food Web
 ###############################
 
-library(igraph)
-library(ggnetwork)
-library(sna)
+library(diagram)
 
-n = network(rgraph(10, tprob = 0.2), directed = FALSE)
-
-web = read_delim("consumptionRate.txt", col_names = FALSE) %>%
-    rename(g = 1, c = 2, Si = 3, Mi = 4, Ni = 5, Sj = 6, Mj = 7, Nj = 8, C = 9)
+web = test1
 
 ## Change to be names of species i and j in first two columns
 web = web %>% relocate(Si, Sj, .before = g)
 
-test = web %>% filter(g == 100000)
-testMat = test %>% dplyr::select(Si, Sj, C) %>% pivot_wider(names_from = Sj, values_from = C, values_fill = 0) %>%
+testMat = web %>% mutate(eNjJij = eNjJij/Mi) %>% dplyr::select(Si, Sj, eNjJij) %>% pivot_wider(names_from = Sj, values_from = eNjJij, values_fill = 0) %>%
     column_to_rownames("Si")
 
-ggplot(ggnetwork(test), aes(x, y, xend = xend, yend = yend)) + 
-    geom_edges(aes(linewidth = log10(C/Mi)), color = "grey50", curvature = 0.1,
-    arrow = arrow(length = unit(6, "pt"), type = "closed")) +
-    geom_nodes(aes(size = log10(Nj*Mj))) +
-    geom_nodetext(aes(label = round(log10(Mi), 2)), fontface = "bold", col = "white") +
-    geom_edgetext(aes(label = round(C/Mi, 2)), color = "white", fill = "grey25",
-    box.padding = unit(1, "lines")) +
-    theme_blank()
+testMat = testMat[, order(as.numeric(colnames(testMat)))]
+testMat = testMat[order(as.numeric(row.names(testMat))), ]
+testMat[testMat < 1] = 0 
+
+plotmat(testMat, relsize = 0.8)

@@ -20,7 +20,7 @@ V0 = 0.33
 D0 = 1.62
 
 temp = 20 ## teperatures in celsius
-masses = seq(log10(0.000001), log10(1000000), length.out = 3)
+masses = seq(log10(0.01), log10(100), length.out = 3)
 masses = 10^masses
 N = seq(log10(0.000001), log10(1000000), length.out = 100)
 N = 10^N
@@ -28,7 +28,7 @@ masses = expand.grid(masses, masses, N, N, temp) %>% rename("mi" = 1, "mj" = 2, 
 
 calculateAttackProb = function(mi, mj) {
 
-    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^0.2
+    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^5
 
     return(Aij)
 
@@ -36,7 +36,7 @@ calculateAttackProb = function(mi, mj) {
 
 calculateSearchRate = function(mi, mj, T) {
 
-    aij = 2*(V0)*(D0)*(mi^(0.63))*calculateAttackProb(mi, mj)*(exp(1)^(-E/(k*(T + T0))))
+    aij = 2*(V0)*(D0)*(mi^(0.63))*(exp(1)^(-E/(k*(T + T0))))
 
     return(aij)
 
@@ -52,7 +52,7 @@ calculateHandling = function(mi, mj, T) {
 
 consumptionRate = function(mi, mj, T, N) {
 
-    Jij = calculateSearchRate(mi, mj, T)/(1 + (calculateSearchRate(mi, mj, T)*calculateHandling(mi, mj, T)*N))
+    Jij = (calculateSearchRate(mi, mj, T)*calculateAttackProb(mi, mj)*mj)/(1 + (calculateSearchRate(mi, mj, T)*calculateAttackProb(mi, mj)*calculateHandling(mi, mj, T)*N))
     return(Jij)
 
 }
@@ -60,43 +60,47 @@ consumptionRate = function(mi, mj, T, N) {
 masses = masses %>% mutate(Jij = consumptionRate(mi, mj, T, Nj))
 
 ## Plot J_ij, which is per capita search rate
-JijPlot = ggplot(masses, aes(log10(Nj), log10(Jij), col = as.factor(mj))) +
-    facet_rep_wrap(. ~ mi) +
+JijPlot = ggplot(masses, aes(log10(Nj), log10(Jij), col = as.factor(log10(mj)))) +
+    facet_rep_wrap(. ~ log10(mi)) +
     geom_line(linewidth = 5) + 
     theme_classic() +
-    labs(x = "Log10(Resource Density)", y = bquote(Log10(J[ij])), 
+    labs(x = "Log10(Resource Density)", y = "Log10(Per-Capita Search Rate (Area/Time))", 
     col = "Log10(Resource\nBody Mass)", title = "Log10(Consumer Body Mass)") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_d()
 
-ggsave(filename = "Jij.png", plot = JijPlot,  width = 18, height = 10)
+JijPlot
+
+ggsave(filename = "Jij.pdf", plot = JijPlot,  width = 18, height = 10)
 
 ## Plot Jij multipled by resource density
-NCjJijPlot = ggplot(masses, aes(log10(Nj), log10(Jij*Nj), col = as.factor(mj))) +
-    facet_rep_wrap(. ~ mi) +
+NCjJijPlot = ggplot(masses, aes(log10(Nj), log10(Jij*Nj), col = as.factor(log10(mj)))) +
+    facet_rep_wrap(. ~ log10(mi)) +
     geom_line(linewidth = 5) + 
     theme_classic() +
-    labs(x = "Log10(Resource Density)", y = expression(paste("Log10(", N[C][j], " ", J[ij],")",sep="")), 
+    labs(x = "Log10(Resource Density)", y = "Log10(Consumption Rate (Mass/Time))", 
     col = "Log10(Resource\nBody Mass)", title = "Log10(Consumer Body Mass)") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_d()
 
-ggsave(filename = "NCjJij.png", plot = NCjJijPlot,  width = 18, height = 10)
+NCjJijPlot
+
+ggsave(filename = "NCjJij.pdf", plot = NCjJijPlot,  width = 18, height = 10)
 
 ## Now let's look at when our focal individual is the one being consumed
 
 masses = masses %>% mutate(Jki = consumptionRate(mj, mi, T, Ni))
 
 ## Plot Jki, so when i, our focal individual, is the resource being consumed
-NckJkiPlot = ggplot(filter(masses, Nj %in% c(1e-06, 1e+06)), aes(log10(Ni), log10(Jki*Nj), col = as.factor(mi))) +
-    facet_rep_grid(Nj ~ mj) +
+NckJkiPlot = ggplot(filter(masses, Nj %in% c(1e-06, 1e+06)), aes(log10(Ni), log10(Jki*Nj), col = as.factor(log10(mi)))) +
+    facet_rep_grid(log10(Nj) ~ log10(mj)) +
     geom_line(linewidth = 3) + 
     theme_classic() +
-    labs(x = "Log10(Resource Density)", y = expression(paste("Log10(", N[C][k], " ", J[ki],")",sep="")), 
+    labs(x = "Log10(Resource Density)", y = "Log10(Consumption Rate (Mass/Time))", 
     col = "Log10(Resource\nBody Mass)", title = "Cols = Log10(Consumer Body Mass)\nRows = Log10(Consumer Density)") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_d()
 
 NckJkiPlot
 
-ggsave(filename = "NckJki.png", plot = NckJkiPlot,  width = 18, height = 10)
+ggsave(filename = "NckJki.pdf", plot = NckJkiPlot,  width = 18, height = 10)

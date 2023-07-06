@@ -23,11 +23,24 @@ masses = expand.grid(masses, masses) %>% rename("mi" = 1, "mj" = 2)
 
 calculateAttackProb = function(mi, mj) {
 
-    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^0.2
+    Aij = (1/(1 + 0.25*(exp(1)^-(mi^0.33))))*(1/(1 + (log10(Rp*(mi/mj))^2)))^5
 
     return(Aij)
 
 }
+
+masses = masses = masses %>% 
+    filter(mi %in% c(min(masses$mi), masses[nrow(masses)/2, ]$mj, max(masses$mi))) %>% 
+    mutate(Aij = calculateAttackProb(mi, mj))
+
+ggplot(masses, aes(log10(mj), Aij, col = as.factor(round(log10(mi))))) +
+    geom_line(linewidth = 2) +
+    ylim(0,1) +
+    theme_classic() +
+    labs(x = "Log10(Consumer Body Mass)", y = "Attack Probability",
+    col = "Log10(Resource\nBody Mass)") +
+    scale_colour_viridis_d() +
+    theme(text = element_text(size = 30))
 
 calculateSearchRate = function(mi, mj, T) {
 
@@ -57,4 +70,4 @@ searchRate = ggplot(masses, aes(log10(mj), log10(aij), col = as.factor(round(log
 
 searchRate
 
-ggsave(filename = "searchRate.png", plot = searchRate,  width = 18, height = 10)
+ggsave(filename = "searchRate.pdf", plot = searchRate,  width = 18, height = 10)

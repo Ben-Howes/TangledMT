@@ -25,4 +25,4 @@ pOffPlot = ggplot(dat, aes(x, pOff)) +
 
 pOffPlot
 
-ggsave(filename = "pOffPlot.png", plot = pOffPlot,  width = 18, height = 10)
+ggsave(filename = "pOffPlot.pdf", plot = pOffPlot,  width = 18, height = 10)
