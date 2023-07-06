@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_7/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_15/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -64,14 +64,13 @@ ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), 
     stat_poly_eq(label.y = 0.9, size = 10)   
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 5), aes(log10(M), log10(n),)) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 5), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
-    geom_smooth(method = "lm", col = "red", linewidth = 2) +
+    geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
     labs(x = "Log10(Body Mass)", y = "Log10(Abundance in MTaNa)") +
     theme(text = element_text(size = 30)) +
-    stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) +
-    stat_poly_eq(label.y = 0.9, label.x = 0.9, size = 10)   
+    stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) 
 
 ## Plot abundaunce of species over time, including their mass
 ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = log10(M), linetype = as.factor(pp))) +
@@ -146,7 +145,7 @@ consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE
 gain = consumption %>% group_by(g, c, Si) %>% summarise(gain = sum(eNjJij))
 loss = consumption %>% group_by(g, c, Sj) %>% summarise(loss = sum(NiJij))
 z = consumption %>% distinct(Si, Mi) %>% mutate(z = 0.1*Mi^0.75)
-density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.005*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
+density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.0005*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
 joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>% left_join(density) %>%
     mutate(H = gain - loss - NiJii - z) %>% mutate(HM = H/Mi)

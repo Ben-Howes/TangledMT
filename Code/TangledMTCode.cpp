@@ -30,7 +30,7 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1500000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.15;               // Probability of individual dying if chosen.
@@ -229,25 +229,17 @@ int main(int argc, char *argv[]) {
     
     if(argc == 2) {seed = atof(argv[1]);} else {seed = defSeed;}
     
-    if(argc == 7) {seed = atof(argv[1]); dispDist = atof(argv[2]); probImm = atof(argv[3]);
-        probDisp = atof(argv[6]);} 
-    
-    if(argc == 10) {
+    if(argc == 6) {
         seed = atof(argv[1]);
-        newSeed = atof(argv[2]);
-        dispDist = atof(argv[3]); 
-        probImmFrag = atof(argv[4]);
-        probDisp = atof(argv[5]);
-        fragmentation = atof(argv[6]);
-        fragName = argv[7];
-        fraginpath = "../../Data/Fragments/";
+        r0 = atof(argv[2]);
+        K0 = atof(argv[3]);
+        I0 = atof(argv[4]);
+        P0 = atof(argv[5]);
     }
 
-    if(argc != 2 && argc != 7 && argc != 10) {
-        std::cout << "Unexpected number of command line arguments" << endl;
-        std::cout << "Either input a seed for new community" << endl;
-        std::cout << "Or input the old seed, new seed, fragmentation (1), and a fragmented landscape file path" << endl;
-        std::cout << "Make sure there are input for dispersal distance, interaction distance and Intrascesific competition" << endl;
+    if(argc != 2 && argc != 6) {
+        std::cout << "Incorrect number of arguments entered" << endl;
+        std::cout << "Either input a seed, or arguments for intrisic growth rate, carrying capacity, competition, and time constant" << endl;
         exit(0);
     }
 
@@ -492,7 +484,7 @@ void storeParam(string fileName, string outpath) {
     file << "Growth_Rate" << " r0 " << r0 << "\n";
     file << "Carrying_Capactiy" << " K0 " << K0 << "\n";
     file << "Interference" << " I0 " << I0 << "\n";
-    file << "pOff Slope" << " P0 " << P0 << "\n";
+    file << "pOff_Slope" << " P0 " << P0 << "\n";
 
     file.close();
 
