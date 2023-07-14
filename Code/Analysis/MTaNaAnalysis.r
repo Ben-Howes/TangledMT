@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_15/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_3/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -43,7 +43,7 @@ ggplot(totalPop, aes(g, n)) +
 # ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/totalPop.pdf"), width = 18, height = 10)
 
 ## Plot SAD but with mass
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 25), aes(as.factor(round(log10(M), 1)), log10(n), fill = as.factor(pp))) +
+ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 50), aes(as.factor(round(log10(M), 1)), log10(n), fill = as.factor(pp))) +
     geom_col() +
     theme_classic() +
     theme(text = element_text(size = 30)) +
@@ -64,7 +64,7 @@ ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), 
     stat_poly_eq(label.y = 0.9, size = 10)   
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 5), aes(log10(M), log10(n), col = as.factor(pp))) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 1), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
@@ -73,7 +73,7 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 5), aes(log10(M),
     stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) 
 
 ## Plot abundaunce of species over time, including their mass
-ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = log10(M), linetype = as.factor(pp))) +
+ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
     labs(x = "Time", y = "Log10(Abundaunce)", col = "Log10(Body \nMass)", 
@@ -145,7 +145,23 @@ consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE
 gain = consumption %>% group_by(g, c, Si) %>% summarise(gain = sum(eNjJij))
 loss = consumption %>% group_by(g, c, Sj) %>% summarise(loss = sum(NiJij))
 z = consumption %>% distinct(Si, Mi) %>% mutate(z = 0.1*Mi^0.75)
-density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.0005*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
+
+calculateSearchRate = function(mi, mj, T) {
+
+    V0 = 0.33
+    D0 = 1.62
+    P0 = 1 ## Temperature constant (vary by taxa)
+    k = 8.6173*(10^-5) ## Boltzmann constant
+    T0 = 293.15 ## 0 celsius in Kelvin
+    E = 0 ## Activation energy
+
+    aij = 2*(V0)*(D0)*(mi^(0.63))*(exp(1)^(-E/(k*(T + T0))))
+
+    return(aij)
+
+}
+
+density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.005*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
 joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>% left_join(density) %>%
     mutate(H = gain - loss - NiJii - z) %>% mutate(HM = H/Mi)

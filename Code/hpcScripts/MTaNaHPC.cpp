@@ -18,7 +18,7 @@ using namespace std;
 
 // These variables can be easily changed to alter the output of the model
 
-string dir = "../Results/TNM_Output/";   // Directory for output of model
+string dir = "/rds/general/user/bh719/home/MTaNa/Results/"; // Directory for output of model
 int fragmentation = 0;                      // If 0 creates new community in non-fragmented landscape, if 1 loads in community and loads in your own landscape from command line argument 4.
                                             // but this can be changed in the command line argument, as argument 3.
 
@@ -405,9 +405,9 @@ int main(int argc, char *argv[]) {
             store2ColFiles(s_totalRich, i, totalRich);
             storeVec(s_totalPopSpec, totalPopSpec, i, 2);
             storeVec(s_cellPop, cellPop, i, 2);
-            storecellPopInd(s_cellPopInd, cellPopInd, i);
+            // storecellPopInd(s_cellPopInd, cellPopInd, i);
             storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
-            storeConsumptionRate(s_consumptionRate,  cellPopInd, i, traits);
+            // storeConsumptionRate(s_consumptionRate,  cellPopInd, i, traits);
 
             //Live output to console
             std::cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
@@ -663,7 +663,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
     } else {
         Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
         Ki = K0*pow(cellPopInd[cell][1][ind], 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
-        ri = r0*pow(cellPopInd[cell][1][ind], -0.25); // Intrinsic growth rate
+        ri = r0*pow(cellPopInd[cell][1][ind], -0.15); // Intrinsic growth rate
         // Calculate growth rate of our primary producer as intrinsic growth rate*mass*density function including species specific carrying capacity
         H += ri*Xi*(1-(Xi/Ki));
     }

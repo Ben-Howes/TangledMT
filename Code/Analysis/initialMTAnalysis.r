@@ -6,7 +6,7 @@
 library(tidyverse)
 library(ggpmisc) ## stat_poly
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/InitialMTaNaPP/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/InitialMTaNaPP/Results/"
 setwd(gpath)
 
 ## Load datasets
