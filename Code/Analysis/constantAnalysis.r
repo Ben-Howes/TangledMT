@@ -187,8 +187,8 @@ ggplot(filter(damuth, P0 == 0.1), aes(g, dam, col = as.factor(I0), group = as.fa
     theme(text = element_text(size = 30)) +
     geom_hline(yintercept = -0.75, linetype = "dashed")
 
-ggplot(filter(damuth, P0 == 1), aes(g, dam, col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
+ggplot(filter(damuth, P0 == 1), aes(g, dam, col = base::as.factor(I0), group = base::as.factor(seed))) +
+    facet_rep_grid(base::as.factor(r0) ~ base::as.factor(K0)) +
     geom_line(linewidth = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Slope of Log10(Abundance) ~ Log10(Mass)", col = "Intraspecific\nCompetition (I0)",

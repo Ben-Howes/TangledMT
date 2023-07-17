@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_3/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_4/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -144,7 +144,7 @@ consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE
 ## Calculate H for each time step for each species
 gain = consumption %>% group_by(g, c, Si) %>% summarise(gain = sum(eNjJij))
 loss = consumption %>% group_by(g, c, Sj) %>% summarise(loss = sum(NiJij))
-z = consumption %>% distinct(Si, Mi) %>% mutate(z = 0.1*Mi^0.75)
+z = consumption %>% distinct(Si, Mi) %>% mutate(z = (4.15*(10^-8))*Mi^0.75)
 
 calculateSearchRate = function(mi, mj, T) {
 
@@ -161,7 +161,7 @@ calculateSearchRate = function(mi, mj, T) {
 
 }
 
-density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.005*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
+density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 1*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
 joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>% left_join(density) %>%
     mutate(H = gain - loss - NiJii - z) %>% mutate(HM = H/Mi)

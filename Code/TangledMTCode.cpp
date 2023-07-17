@@ -701,7 +701,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
             (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75));
             // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         H = H/cellPopInd[cell][1][chosenIndex];
-        pOff = 1/(1 + exp(-P0*(H - 0.5)));
+        pOff = (1/(1 + exp(-P0*(H - 0.5))));
 
         if (uniform(eng) <= pOff) {
             int mutSpec = mutation(cellPopInd, probMut, chosenSpec, eng);
