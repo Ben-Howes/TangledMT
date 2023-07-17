@@ -665,7 +665,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
         Ki = K0*pow(cellPopInd[cell][1][ind], 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
         ri = r0*pow(cellPopInd[cell][1][ind], -0.25); // Intrinsic growth rate
         // Calculate growth rate of our primary producer as intrinsic growth rate*mass*density function including species specific carrying capacity
-        H += ri*Xi*(1-(Xi/Ki));
+        H += ri*cellPopInd[cell][1][ind]*(1-(Xi/Ki));
     }
 
     // Loop over consumption of focal species
@@ -692,7 +692,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
 
     if(pop > 0) {
         int chosenSpec, chosenIndex;
-        double H, pOff;
+        double H, pOff, G;
         
         cellMass = getCellMass(cell, cellPopInd); // Get the total mass of all individuals in the cell
         chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
@@ -701,7 +701,8 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
             (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75));
             // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         H = H/cellPopInd[cell][1][chosenIndex];
-        pOff = (1/(1 + exp(-P0*(H - 0.5))));
+        G = pow(cellPopInd[cell][1][chosenIndex], 0.25); // Calculate generation time of individual
+        pOff = 1/(1 + G + ((1 + G)*exp(-P0*(H - 0.5))));
 
         if (uniform(eng) <= pOff) {
             int mutSpec = mutation(cellPopInd, probMut, chosenSpec, eng);

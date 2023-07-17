@@ -8,18 +8,18 @@ library(tidyverse)
 gpath = "/home/ben/Documents/TangledMT/Paper/Figures/"
 setwd(gpath)
 
-x = seq(-100, 100, length.out = 101)
+x = seq(-10, 10, length.out = 101)
 masses = seq(log10(0.01), log10(100), length.out = 3)
 masses = 10^masses
 dat = expand.grid(masses, x) %>% rename("m" = 1, "x" = 2)
 
 pOff = function(x, m, k = 0.1) {
-    G = 1/(m^0.25)
-    pOff = G / (G + exp(-k * (x - 0)))
+    G = m^0.25
+    pOff = 1 / (1 + G + ((1 + G)*exp(-k * (x - 0.5))))
     return(pOff)
 }
 
-dat = dat %>% mutate(pOff = pOff(x, m, k = 0.1))
+dat = dat %>% mutate(G = m^0.25, pOff = pOff(x, m, k = 1))
 
 pOffPlot = ggplot(dat, aes(x, pOff, col = as.factor(log10(m)))) + 
     geom_line(linewidth = 2.5) +

@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_4/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -43,8 +43,8 @@ ggplot(totalPop, aes(g, n)) +
 # ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/totalPop.pdf"), width = 18, height = 10)
 
 ## Plot SAD but with mass
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 50), aes(as.factor(round(log10(M), 1)), log10(n), fill = as.factor(pp))) +
-    geom_col() +
+ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 100), aes(log10(M), log10(n), fill = as.factor(pp))) +
+    geom_col(width = 0.01) +
     theme_classic() +
     theme(text = element_text(size = 30)) +
     labs(x = "Log10(Mass)", y = "Log10(Abundance", fill = "Primary\nProducer") +
@@ -53,24 +53,16 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 50), 
 
 # ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/SAD.pdf"), width = 18, height = 10)
 
-## Does the abundance of species follow Damuth’s law? (n = M^-0.75)
-ggplot(mutate(totalPopSpec, N = M^-0.75) %>% filter (g == max(totalPopSpec$g)), aes(n, N)) +
-    geom_point(size = 5) +
-    geom_smooth(method = "lm", col = "red", linewidth = 2) +
-    theme_classic() +
-    labs(x = "Abundaunce in MTaNa", y = bquote("Predicted Abundaunce"~(M^-0.75))) +
-    theme(text = element_text(size = 30)) +
-    stat_poly_eq(use_label("eq"), size = 10) +
-    stat_poly_eq(label.y = 0.9, size = 10)   
-
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
 ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 1), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
-    labs(x = "Log10(Body Mass)", y = "Log10(Abundance in MTaNa)") +
+    labs(x = "Log10(Body Mass)", y = "Log10(Abundance in MTaNa)",
+    col = "Primary\nProducer") +
     theme(text = element_text(size = 30)) +
-    stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) 
+    stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) +
+    scale_colour_viridis_d(end = 0.7)
 
 ## Plot abundaunce of species over time, including their mass
 ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
@@ -164,7 +156,8 @@ calculateSearchRate = function(mi, mj, T) {
 density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 1*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
 joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>% left_join(density) %>%
-    mutate(H = gain - loss - NiJii - z) %>% mutate(HM = H/Mi)
+    mutate(H = gain - loss - NiJii - z) %>% 
+    mutate(HM = H/Mi, pOff = (1 / ((1 + (Mi^0.25)) + ((1 + Mi^0.25)*exp(-1 * (HM - 0.5))))))
 
 ggplot(filter(joined, Mi > 10), aes(g, HM, col = Mi)) +
     geom_point(size = 5) +
