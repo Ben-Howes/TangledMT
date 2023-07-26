@@ -64,7 +64,25 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 1), aes(log10(M),
     stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) +
     scale_colour_viridis_d(end = 0.7)
 
-## Plot abundaunce of species over time, including their mass
+checkDamuth = function(x) {
+    x = x %>% filter(pp == 0)
+    if(nrow(x) > 4) {
+        mod = lm(log10(n) ~ log10(M), data = x)
+        slope = coef(mod)[[2]]
+        out = x %>% mutate(dam = slope)
+        return(out)
+        }
+}
+
+damuth = cellPopSpec %>% 
+    filter(g %% 100000 == 0) %>%
+    group_split(g) %>%
+    lapply(., checkDamuth) %>% 
+    bind_rows()
+
+ggplot(damuth, aes(g, dam)) + geom_line()
+
+## Plot abundance of species over time, including their mass
 ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
@@ -86,30 +104,6 @@ ggplot(avgMass, aes(g, log10(avgM))) +
     theme_classic() +
     labs(x = "Time", y = "Log10(Average Body Mass)") +
     theme(text = element_text(size = 30))
-
-## Plot final trait distribution (not weighted by abundance)
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)), aes(log10(M), y = ..density..)) + 
-    geom_histogram(fill = "grey80", col = "black") +
-    theme_classic() +
-    theme(text = element_text(size = 30)) +
-    labs(x = "Log10(Body Mass)", y = "Density") +
-    scale_y_continuous(expand = c(0, 0))
-
-## Plot final trait distribution (weighted by abundance)
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)), aes(log10(M), y = ..density.., weight = n)) + 
-    geom_histogram(fill = "grey80", col = "black") +
-    theme_classic() +
-    theme(text = element_text(size = 30)) +
-    labs(x = "Log10(Body Mass)", y = "Density") +
-    scale_y_continuous(expand = c(0, 0))
-
-## Plot final trait distribution (weighted by biomass)
-ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% mutate(nM = n*M), aes(log10(M), y = ..density.., weight = nM)) + 
-    geom_histogram(fill = "grey80", col = "black") +
-    theme_classic() +
-    theme(text = element_text(size = 30)) +
-    labs(x = "Log10(Body Mass)", y = "Density") +
-    scale_y_continuous(expand = c(0, 0))
 
 ## Raster figure showing which species are alive when
 rasterDat = cellPopSpec %>% group_by(s) %>% summarise(N = sum(n*M)) %>% filter(N > 50) %>% distinct(s)
@@ -153,21 +147,23 @@ calculateSearchRate = function(mi, mj, T) {
 
 }
 
-density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 1*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
+density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.1*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
 joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>% left_join(density) %>%
     mutate(H = gain - loss - NiJii - z) %>% 
-    mutate(HM = H/Mi, pOff = (1 / ((1 + (Mi^0.25)) + ((1 + Mi^0.25)*exp(-1 * (HM - 0.5))))))
+    mutate(HM = H/Mi)
 
-ggplot(filter(joined, Mi > 10), aes(g, HM, col = Mi)) +
-    geom_point(size = 5) +
+joined = joined %>% left_join(dplyr::select(traits, s, pp), by = join_by(Si == s)) %>%
+    mutate(gain = ifelse(pp == 1, Mi*(1 - (Ni*Mi)/(10*(Mi^0.25))), gain),
+    H = ifelse(pp == 1, gain - loss - z, H), HM = (H/Mi), pOff = (1 / (1 + exp(-(1/(Mi^0.25))*(HM - 0.5)))))
+
+ggplot(filter(joined, Si == 219), aes(g, Ni, col = cut(pOff, c(-Inf, 0.15, Inf)))) +
+    geom_point(size = 2) +
+    scale_colour_manual(name = "pOff", values = c("(-Inf,0.15]" = "red",
+                                  "(0.15, Inf]" = "blue"),
+                                  labels = c("<= 0.15", "0.15 <")) +
     theme_classic() +
-    scale_colour_viridis_c() +
-    labs(x = "Time", y = "H/Mass of Consumer") +
-    theme(text = element_text(size = 30)) +
-    ylim(-50, 50)
-
-joined %>% filter(Mi > 10)
+    theme(text = element_text(size = 30))
 
 ###############################
 ## Food Web

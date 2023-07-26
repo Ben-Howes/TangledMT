@@ -44,12 +44,9 @@ double probMut = 0;                      // Probability of a number in the genom
 double ppProb = 0.2;                       // Sets proportion of species that are primary producers
 double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
 double k = 8.6173*(10^-5);                  // Boltzmann constant
-double r0 = 7.5;                            // Scaling of intrinsic growth rate (primary producers only). Choosing this depends on the distribution of masses of species in the model
-                                            // larger r0 needed for larger masses
+double r0 = 1;                              // Multiplier for gain in mass of primary producers
 double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
 double I0 = 0.0005;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
-double P0 = 2;                              // Constant to set slop of pOff. Increasing it increases rate of changes, decreasing decreases rate of changes
-                                            // So high P0 will see sudden changes in abundaunce, low P0 will see gradual
 
 ///////////////////////
 // Define Variables //
@@ -96,9 +93,9 @@ int chooseInRange(int a, int b, mt19937& eng);
 void immigration(vector <double> (&cellPopInd)[numCells][4], double prob, int cell, int numSpec, int &immNum, mt19937& eng);
 void kill(vector <double> (&cellPopInd)[numCells][4], double prob, int cell, int numSpec, mt19937& eng);
 void reproduction(vector <double> (&cellPopInd)[numCells][4], 
-int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng);
+int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, int gen, mt19937& eng);
 double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int ind,
-    vector <int> (&cellPopSpec)[numCells][2]);
+    vector <int> (&cellPopSpec)[numCells][2], int gen);
 void shuffle(int arr[], int arrElements, mt19937& eng);
 int randomIndex(vector <double> (&cellPopInd)[numCells][4], int pop, int numSpec, int cell, mt19937& eng);
 void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int numCells);
@@ -229,17 +226,16 @@ int main(int argc, char *argv[]) {
     
     if(argc == 2) {seed = atof(argv[1]);} else {seed = defSeed;}
     
-    if(argc == 6) {
+    if(argc == 5) {
         seed = atof(argv[1]);
         r0 = atof(argv[2]);
         K0 = atof(argv[3]);
         I0 = atof(argv[4]);
-        P0 = atof(argv[5]);
     }
 
-    if(argc != 2 && argc != 6) {
+    if(argc != 2 && argc != 5) {
         std::cout << "Incorrect number of arguments entered" << endl;
-        std::cout << "Either input a seed, or arguments for intrisic growth rate, carrying capacity, competition, and time constant" << endl;
+        std::cout << "Either input a seed, or arguments for primary producer gain multipler, carrying capacity, and competition" << endl;
         exit(0);
     }
 
@@ -381,7 +377,7 @@ int main(int argc, char *argv[]) {
         for (int j = 0; j < numCells; j++) {
             int cell = cellOrder[j];
             kill(cellPopInd, probDeath, cell, numSpec, eng);
-            reproduction(cellPopInd, cellList, traits, cell, numSpec, Rfr, eng);
+            reproduction(cellPopInd, cellList, traits, cell, numSpec, Rfr, i, eng);
             // // probDispDen = dispersalProb(cellPopInd, Rfr, cell, probDeath, probDisp);
             dispersal(cellPopInd, distArray, probDisp, cell, numSpec, dispNum, eng); // Now set to a constant probability
             if(fragmentation == 0) {
@@ -396,7 +392,7 @@ int main(int argc, char *argv[]) {
         if((i+1)%1000 == 0) {
             calculateTotalPopSpec(cellPopInd, totalPopSpec);
             totalPop = 0;
-            for (int i = 0; i < totalPopSpec[0].size(); i++){totalPop += totalPopSpec[1][i];}
+            for (int j = 0; j < totalPopSpec[0].size(); j++){totalPop += totalPopSpec[1][j];}
             totalRich = totalPopSpec[0].size();
             calculateCellPop(cellPopInd, cellPop);
 
@@ -481,10 +477,9 @@ void storeParam(string fileName, string outpath) {
     file.open(outpath + fileName);
 
     file << "Species_Pool" << " S " << numSpec << "\n";
-    file << "Growth_Rate" << " r0 " << r0 << "\n";
+    file << "PP_Gain_Multiplier" << " r0 " << r0 << "\n";
     file << "Carrying_Capactiy" << " K0 " << K0 << "\n";
     file << "Interference" << " I0 " << I0 << "\n";
-    file << "pOff_Slope" << " P0 " << P0 << "\n";
 
     file.close();
 
@@ -628,7 +623,7 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
 }
 
 double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int ind,
-    vector <int> (&cellPopSpec)[numCells][2]) {
+    vector <int> (&cellPopSpec)[numCells][2], int gen) {
 
     double H = 0; // Store energy state after interactions
     double CE = 0.5; // Conversation efficiency
@@ -640,9 +635,13 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
 
     double Xi; // Biomass of population of focal species i in cell C (primary producers onlu)
     double Ki; // Carrying capacity of population of focal individual i (primary prodiucers onlu)
-    double ri; // Intrinsic growth rate of focal individual i (for primary producers only)
     
-    for (int k = 0; k < cellPopSpec[cell][0].size(); k++) {if(Si == cellPopSpec[cell][0][k]) {Ni = cellPopSpec[cell][1][k]; break;}}
+    for (int k = 0; k < cellPopSpec[cell][0].size(); k++) {
+        if(Si == cellPopSpec[cell][0][k]) {
+            Ni = cellPopSpec[cell][1][k]; 
+            break;
+        }
+    }
     
     // Check if focal species is a primary producer or not (1 = primary producer)
     if(cellPopInd[cell][2][ind] == 0) {
@@ -663,9 +662,8 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
     } else {
         Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
         Ki = K0*pow(cellPopInd[cell][1][ind], 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
-        ri = r0*pow(cellPopInd[cell][1][ind], -0.25); // Intrinsic growth rate
         // Calculate growth rate of our primary producer as intrinsic growth rate*mass*density function including species specific carrying capacity
-        H += ri*cellPopInd[cell][1][ind]*(1-(Xi/Ki));
+        H += r0*pow(cellPopInd[cell][1][ind], -0.25)*cellPopInd[cell][1][ind]*(1-(Xi/Ki));
     }
 
     // Loop over consumption of focal species
@@ -685,7 +683,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
 }
 
 void reproduction(vector <double> (&cellPopInd)[numCells][4], 
-int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, mt19937& eng) {
+int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int Rfr, int gen, mt19937& eng) {
 
     int pop = cellPopInd[cell][0].size();
     double cellMass; double B0 = 4.15*pow(10, -8);
@@ -697,12 +695,12 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         cellMass = getCellMass(cell, cellPopInd); // Get the total mass of all individuals in the cell
         chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
         chosenSpec = cellPopInd[cell][0][chosenIndex];
-        H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec) - 
+        H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75));
-            // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
+        // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
+        G = pow(cellPopInd[cell][1][chosenIndex], 0.25);
         H = H/cellPopInd[cell][1][chosenIndex];
-        G = pow(cellPopInd[cell][1][chosenIndex], 0.25); // Calculate generation time of individual
-        pOff = 1/(1 + G + ((1 + G)*exp(-P0*(H - 0.5))));
+        pOff = 1/(1 + exp(-(1/G)*(H - 0.5)));
 
         if (uniform(eng) <= pOff) {
             int mutSpec = mutation(cellPopInd, probMut, chosenSpec, eng);
@@ -802,7 +800,7 @@ double gaussian(mt19937& eng) {
 }
 
 void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProb) {
-    std::lognormal_distribution<double> distribution(-2.0, 1.0);
+    std::lognormal_distribution<double> distribution(0, 3.0);
     for (int i = 0; i < numSpec; i++) {
         traits[i][0] = distribution(eng);
         if(uniform(eng) < ppProb) {traits[i][1] = 1;} else {traits[i][1] = 0;};

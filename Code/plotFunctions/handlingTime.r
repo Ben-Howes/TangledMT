@@ -24,7 +24,7 @@ masses = expand.grid(masses, masses, temp) %>% rename("mi" = 1, "mj" = 2, "T" = 
 
 calculateHandling = function(mi, mj, T) {
 
-    Hij = H0*(mi^(-B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))*(P0)*(exp(1)^(-E/(k*(T + T0))))
+    Hij = H0*(mi^(-B))*(1-(a*exp(-(((mj/mi) - Rp)^2)/2*(c)^2)))*(exp(1)^(-E/(k*(T + T0))))
 
     return(Hij)
 

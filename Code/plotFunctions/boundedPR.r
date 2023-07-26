@@ -11,17 +11,17 @@ setwd(gpath)
 x = seq(-10, 10, length.out = 101)
 masses = seq(log10(0.01), log10(100), length.out = 3)
 masses = 10^masses
-dat = expand.grid(masses, x) %>% rename("m" = 1, "x" = 2)
+dat = expand.grid(x, masses) %>% rename("x" = 1, "m" = 2)
 
 pOff = function(x, m, k = 0.1) {
     G = m^0.25
-    pOff = 1 / (1 + G + ((1 + G)*exp(-k * (x - 0.5))))
+    pOff = 1 / (1 + (exp(-(1/G) * (x - 0.5))))
     return(pOff)
 }
 
 dat = dat %>% mutate(G = m^0.25, pOff = pOff(x, m, k = 1))
 
-pOffPlot = ggplot(dat, aes(x, pOff, col = as.factor(log10(m)))) + 
+pOffPlot = ggplot(dat, aes(x, pOff, col = as.factor(round(log10(m), 2)))) + 
     geom_line(linewidth = 2.5) +
     theme_classic() +
     labs(x = expression(paste(H[i], "'")), y = expression(paste(p[R],sep="")),

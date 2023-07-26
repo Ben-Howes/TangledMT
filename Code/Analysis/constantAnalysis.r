@@ -41,35 +41,15 @@ cellPopSpec = mclapply(paths, cellPopSpec, mc.cores = 6) %>%
 ## Total Population
 ##################################
 
-totalPop = cellPopSpec %>% group_by(seed, g, r0, K0, I0, P0) %>% 
-    summarise(totalPop = sum(n))
+totalPop = cellPopSpec %>% group_by(seed, g, r0, K0, I0) %>% 
+    filter(pp == 0) %>% summarise(totalPop = sum(n))
 
-ggplot(filter(totalPop, P0 == 0.1), aes(g, log10(totalPop), col = as.factor(I0), group = as.factor(seed))) +
+ggplot(totalPop, aes(g, log10(totalPop), col = as.factor(I0), group = as.factor(seed))) +
     facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
     geom_line(size = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Log10(Abundance)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 0.1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30))
-
-ggplot(filter(totalPop, P0 == 1), aes(g, log10(totalPop), col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(size = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Log10(Abundance)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30))
-
-ggplot(filter(totalPop, P0 == 10), aes(g, log10(totalPop), col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(size = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Log10(Abundance)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 10\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
+    title = "Rows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
     scale_x_continuous(n.breaks = 3) + 
     theme_classic() + 
     theme(text = element_text(size = 30))
@@ -78,35 +58,16 @@ ggplot(filter(totalPop, P0 == 10), aes(g, log10(totalPop), col = as.factor(I0), 
 ## Total Species Richness
 ##################################
 
-totalRich = cellPopSpec %>% group_by(seed, g, r0, K0, I0, P0) %>% 
+totalRich = cellPopSpec %>% group_by(seed, g, r0, K0, I0) %>% 
+    filter(pp == 0) %>%
     summarise(totalRich = n_distinct(s))
 
-ggplot(filter(totalRich, P0 == 0.1), aes(g, log10(totalRich), col = as.factor(I0), group = as.factor(seed))) +
+ggplot(totalRich, aes(g, log10(totalRich), col = as.factor(I0), group = as.factor(seed))) +
     facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
     geom_line(size = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Log10(Richness)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 0.1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30))
-
-ggplot(filter(totalRich, P0 == 1), aes(g, log10(totalRich), col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(size = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Log10(Richness)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30))
-
-ggplot(filter(totalRich, P0 == 10), aes(g, log10(totalRich), col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(size = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Log10(Richness)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 10\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
+    title = "nRows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
     scale_x_continuous(n.breaks = 3) + 
     theme_classic() + 
     theme(text = element_text(size = 30))
@@ -117,35 +78,16 @@ ggplot(filter(totalRich, P0 == 10), aes(g, log10(totalRich), col = as.factor(I0)
 
 avgMass = cellPopSpec %>% 
     mutate(biomass = m*n) %>% 
-    group_by(seed, g, r0, K0, I0, P0) %>% 
+    group_by(seed, g, r0, K0, I0) %>% 
+    filter(pp == 0) %>%
     summarise(avgMass = sum(biomass)/n())
 
-ggplot(filter(avgMass, P0 == 0.1), aes(g, log10(avgMass), col = as.factor(I0), group = as.factor(seed))) +
+ggplot(avgMass, aes(g, log10(avgMass), col = as.factor(I0), group = as.factor(seed))) +
     facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
     geom_line(size = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Log10(Average Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 0.1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30))
-
-ggplot(filter(avgMass, P0 == 1), aes(g, log10(avgMass), col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(size = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Log10(Average Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30))
-
-ggplot(filter(avgMass, P0 == 10), aes(g, log10(avgMass), col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(size = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Log10(Average Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 10\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
+    title = "Rows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
     scale_x_continuous(n.breaks = 3) + 
     theme_classic() + 
     theme(text = element_text(size = 30))
@@ -172,38 +114,16 @@ checkDamuth = function(x) {
 
 damuth = cellPopSpec %>% 
     filter(g %% 100000 == 0) %>%
-    group_split(seed, g, r0, K0, I0, P0) %>%
+    group_split(seed, g, r0, K0, I0) %>%
     lapply(., checkDamuth) %>% 
     bind_rows()
 
-ggplot(filter(damuth, P0 == 0.1), aes(g, dam, col = as.factor(I0), group = as.factor(seed))) +
+ggplot(damuth, aes(g, dam, col = as.factor(I0), group = as.factor(seed))) +
     facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
     geom_line(linewidth = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Slope of Log10(Abundance) ~ Log10(Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 0.1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30)) +
-    geom_hline(yintercept = -0.75, linetype = "dashed")
-
-ggplot(filter(damuth, P0 == 1), aes(g, dam, col = base::as.factor(I0), group = base::as.factor(seed))) +
-    facet_rep_grid(base::as.factor(r0) ~ base::as.factor(K0)) +
-    geom_line(linewidth = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Slope of Log10(Abundance) ~ Log10(Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 1\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
-    scale_x_continuous(n.breaks = 3) + 
-    theme_classic() + 
-    theme(text = element_text(size = 30)) +
-    geom_hline(yintercept = -0.75, linetype = "dashed")
-
-ggplot(filter(damuth, P0 == 10), aes(g, dam, col = as.factor(I0), group = as.factor(seed))) +
-    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
-    geom_line(linewidth = 1) +
-    scale_colour_viridis_d() + 
-    labs(x = "Time", y = "Slope of Log10(Abundance) ~ Log10(Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "P0 = 10\nRows = Growth Rate (r0)\nCols = Carrying Capacity (K0)") +
+    title = "Rows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
     scale_x_continuous(n.breaks = 3) + 
     theme_classic() + 
     theme(text = element_text(size = 30)) +
