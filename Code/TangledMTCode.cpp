@@ -47,6 +47,7 @@ double k = 8.6173*(10^-5);                  // Boltzmann constant
 double r0 = 1;                              // Multiplier for gain in mass of primary producers
 double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
 double I0 = 0.0005;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
+double G0;                                  // Constant for generation time. Set dynamically based on lowest mass, so generation time is always 1 or more.
 
 ///////////////////////
 // Define Variables //
@@ -322,6 +323,13 @@ int main(int argc, char *argv[]) {
         createTraits(traits, eng, ppProb);
         store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
         storeParam("/Parameters.txt", outpath);
+
+        // Calculate constant for generation time (G0) which is set based on minimum mass
+        // so generaiton time (G) is never less than 1, and therefore pOff can never be above 1
+        double minMi = traits[0][0];
+        // Get minimum mass in traits array
+        for (int i = 0; i < numSpec; i++) {if(minMi > traits[i][0]) {minMi = traits[i][0];}}
+        G0 = 1/pow(minMi, 0.25);
 
         // Make default landscape based on rows, columns and numCells provided (aka all cells forest)
         for (int i = 0; i < cellRows; i++) {fill_n(landscapeArray[i], cellCols, 1);}
@@ -698,9 +706,12 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
-        G = pow(cellPopInd[cell][1][chosenIndex], 0.25);
+        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25);
         H = H/cellPopInd[cell][1][chosenIndex];
-        pOff = 1/(1 + exp(-(1/G)*(H - 0.5)));
+        pOff = 1/(1 + exp(-(H - 0.5)));
+        // Divide pOff by generation time G to set the number of trials needed
+        // per successful reproduction attempt, which scales with mass
+        pOff = pOff/G;
 
         if (uniform(eng) <= pOff) {
             int mutSpec = mutation(cellPopInd, probMut, chosenSpec, eng);
@@ -715,10 +726,16 @@ void kill(vector <double> (&cellPopInd)[numCells][4], double prob, int cell, int
 
     if(pop > 0) { 
 
-    int chosenIndex;
+        int chosenIndex;
+        double G; // Generation time
+
+        chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
+        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25);
+        // Modify probability of death by generation time, so bigger things
+        // are less likely to die per time step
+        prob = prob/G;
 
         if (uniform(eng) <= prob) {
-            chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
             removeInd(cellPopInd, cell, chosenIndex, cellPopSpec);
         }
     }
