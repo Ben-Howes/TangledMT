@@ -54,7 +54,7 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 100),
 # ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/SAD.pdf"), width = 18, height = 10)
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 1), aes(log10(M), log10(n), col = as.factor(pp))) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 0), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
@@ -65,11 +65,11 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 1), aes(log10(M),
     scale_colour_viridis_d(end = 0.7)
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0)
+    x = x %>% filter(pp == 0 & n > 1)
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(M), data = x)
         slope = coef(mod)[[2]]
-        out = x %>% mutate(dam = slope)
+        out = x %>% distinct(g, c) %>% mutate(dam = slope)
         return(out)
         }
 }
@@ -80,7 +80,10 @@ damuth = cellPopSpec %>%
     lapply(., checkDamuth) %>% 
     bind_rows()
 
-ggplot(damuth, aes(g, dam)) + geom_line()
+ggplot(damuth, aes(g, dam)) + 
+    geom_line() +
+    theme_classic() +
+    geom_hline(yintercept = -0.75, linetype = "dashed")
 
 ## Plot abundance of species over time, including their mass
 ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
@@ -157,7 +160,7 @@ joined = joined %>% left_join(dplyr::select(traits, s, pp), by = join_by(Si == s
     mutate(gain = ifelse(pp == 1, Mi*(1 - (Ni*Mi)/(10*(Mi^0.25))), gain),
     H = ifelse(pp == 1, gain - loss - z, H), HM = (H/Mi), pOff = (1 / (1 + exp(-(1/(Mi^0.25))*(HM - 0.5)))))
 
-ggplot(filter(joined, Si == 219), aes(g, Ni, col = cut(pOff, c(-Inf, 0.15, Inf)))) +
+ggplot(filter(joined, Si == 11), aes(g, Ni, col = cut(pOff, c(-Inf, 0.15, Inf)))) +
     geom_point(size = 2) +
     scale_colour_manual(name = "pOff", values = c("(-Inf,0.15]" = "red",
                                   "(0.15, Inf]" = "blue"),

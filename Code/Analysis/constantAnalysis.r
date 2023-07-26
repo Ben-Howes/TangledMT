@@ -103,11 +103,11 @@ ggplot(avgMass, aes(g, log10(avgMass), col = as.factor(I0), group = as.factor(se
 ## based on the equations we've set
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0)
+    x = x %>% filter(pp == 0 & n > 5)
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(m), data = x)
         slope = coef(mod)[[2]]
-        out = x %>% mutate(dam = slope)
+        out = x %>% distinct(seed, g, r0, K0, I0) %>% mutate(dam = slope)
         return(out)
         }
 }
@@ -123,8 +123,11 @@ ggplot(damuth, aes(g, dam, col = as.factor(I0), group = as.factor(seed))) +
     geom_line(linewidth = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Slope of Log10(Abundance) ~ Log10(Mass)", col = "Intraspecific\nCompetition (I0)",
-    title = "Rows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
+    title = "n > 5\nRows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
     scale_x_continuous(n.breaks = 3) + 
     theme_classic() + 
     theme(text = element_text(size = 30)) +
     geom_hline(yintercept = -0.75, linetype = "dashed")
+
+
+ggsave(paste0(gpath, "../../Paper/Figures/MTaNaConstants/n>5Damuth.png"), width = 18, height = 10)

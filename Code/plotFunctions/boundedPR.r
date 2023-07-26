@@ -14,8 +14,9 @@ masses = 10^masses
 dat = expand.grid(x, masses) %>% rename("x" = 1, "m" = 2)
 
 pOff = function(x, m, k = 0.1) {
-    G = m^0.25
-    pOff = 1 / (1 + (exp(-(1/G) * (x - 0.5))))
+    G = 5*m^0.25
+    pOff = 1 / (1 + (exp(-(x - 0.5))))
+    pOff = pOff/G
     return(pOff)
 }
 
