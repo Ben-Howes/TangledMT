@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -54,7 +54,7 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 100),
 # ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/SAD.pdf"), width = 18, height = 10)
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 0), aes(log10(M), log10(n), col = as.factor(pp))) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
@@ -158,7 +158,7 @@ joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>
 
 joined = joined %>% left_join(dplyr::select(traits, s, pp), by = join_by(Si == s)) %>%
     mutate(gain = ifelse(pp == 1, Mi*(1 - (Ni*Mi)/(10*(Mi^0.25))), gain),
-    H = ifelse(pp == 1, gain - loss - z, H), HM = (H/Mi), pOff = (1 / (1 + exp(-(1/(Mi^0.25))*(HM - 0.5)))))
+    H = ifelse(pp == 1, gain - loss - z, H), HM = (H/Mi), pOff = (1 / (1 + exp(-((1/(100*(Mi^0.25))))*(HM - 0.5)))))
 
 ggplot(filter(joined, Si == 11), aes(g, Ni, col = cut(pOff, c(-Inf, 0.15, Inf)))) +
     geom_point(size = 2) +
