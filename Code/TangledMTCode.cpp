@@ -48,7 +48,7 @@ double r0 = 10;                              // Multiplier for gain in mass of p
 double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
 double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
 double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
-double alpha = 1;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
+double alpha = 0.01;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
 
 ///////////////////////
 // Define Variables //
@@ -137,6 +137,7 @@ double getCellMass(int cell, vector <double> (&cellPopInd)[numCells][4]);
 double getSpeciesCellMass(int cell, int chosenSpec, vector <double> cellPopInd[numCells][4]);
 double arrhenius(double E);
 void storeConsumptionRate(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]);
+void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]);
 double profitability(int Si, int Sj, double (&traits)[numSpec][2]);
 
 ///////////////////////////////
@@ -329,8 +330,6 @@ int main(int argc, char *argv[]) {
         for (int i = 0; i < numSpec; i++){if(traits[i][0] < minMi){minMi = traits[i][0];}}
         G0 = 1/pow(minMi, 0.25);
 
-        cout << "Minimum mass is " << minMi << " and G0 is " << G0 << endl;
-
         // Store parameters used in model
         storeParam("/Parameters.txt", outpath);
 
@@ -379,7 +378,8 @@ int main(int argc, char *argv[]) {
     s_cellPopSpec.open(respath + "/cellPopSpec.txt");
     ofstream s_consumptionRate;
     s_consumptionRate.open(respath + "/consumptionRate.txt");
-    
+    ofstream s_reproduction;
+    s_reproduction.open(respath + "/reproduction.txt");
     
     // Start model dynamics
     for (int i = 0; i < t; i++) {
@@ -414,7 +414,8 @@ int main(int argc, char *argv[]) {
             storeVec(s_cellPop, cellPop, i, 2);
             storecellPopInd(s_cellPopInd, cellPopInd, i);
             storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
-            storeConsumptionRate(s_consumptionRate,  cellPopInd, i, traits);
+            // storeConsumptionRate(s_consumptionRate,  cellPopInd, i, traits);
+            storeReproduction(s_reproduction, cellPopInd, i, traits);
 
             //Live output to console
             std::cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
@@ -435,7 +436,8 @@ int main(int argc, char *argv[]) {
         //  storeVecEnd(cellPopInd, 3, "/final_cellPopInd.txt", finfragpath);
     }
     // Close all streams to files
-    s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close(); s_consumptionRate.close();
+    s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close();
+    s_consumptionRate.close(); s_reproduction.close();
 
     // end timer FC
     std::cout << "Elapsed(s)=" << since(start).count() << endl; 
@@ -715,8 +717,8 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
 
-        if(pOff == (1/G)) {
-            cout << "Maximum pOff hit" << endl;
+        if(pOff > (1/G) - (0.1*(1/G))) {
+            cout << "pOff within 10% of maximum" << endl;
             cout << "Mass is " << cellPopInd[cell][1][chosenIndex] << " maximum pOff is " << 1/G << " and pOff is " << pOff << endl;
             exit(0);
         }
@@ -1115,13 +1117,35 @@ void storeConsumptionRate(ofstream &stream, vector <double> (&cellPopInd)[numCel
 
 }
 
-double profitability(int Si, int Sj, double (&traits)[numSpec][2]) {
-    
-    double Mj = traits[Sj][0];
-    double pij;
+// THIS NEEDS TO BE HEAVILY MODIFIED WHEN WE CONVERT TO AN INTRASPECIFIC VARIATION MODEL
+void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]) {
 
-    pij = (attackProb(Si, Sj, traits)*Mj)/handlingTime(Si, Sj, 0, traits);
+    // This is currently calculated at the species level as it was very slow at
+    // the individual level, even though we may want to store at individual level
+    // once we have intraspecific variation
 
-    return pij;
+    for (int i = 0; i < numCells; i++) {
+        for (int j = 0; j < cellPopSpec[i][0].size(); j++) {
 
+        double cellMass; double B0 = 4.15*pow(10, -8);
+
+        int chosenSpec, chosenIndex;
+        double H, pOff, G;
+        
+        cellMass = getCellMass(i, cellPopInd); // Get the total mass of all individuals in the cell
+        chosenSpec = cellPopSpec[i][0][j];
+        // Now we need to cheat and find the index of an individual of the species in cellPopInd
+        // later I need to overhaul this approach
+        for (int k = 0; k < cellPopInd[i][0].size(); k++) {if(cellPopInd[i][0][k] == chosenSpec){chosenIndex = k;}}
+        H = calculateInteractions(cellPopInd, traits, i, numSpec, chosenIndex, cellPopSpec, gen) - 
+            (B0*std::pow(traits[chosenSpec][0], 0.75));
+        // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
+        G = G0*pow(traits[chosenSpec][0], 0.25);
+        H = H/traits[chosenSpec][0];
+        pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
+
+        stream << gen + 1 << " " << i+1 << " " << chosenSpec+1 << " " << traits[chosenSpec][0] << " " << H << " " << 1/G << " " << pOff << "\n";
+
+        }
+    }
 }

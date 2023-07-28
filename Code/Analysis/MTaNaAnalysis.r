@@ -65,7 +65,7 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M),
     scale_colour_viridis_d(end = 0.7)
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0 & n > 1)
+    x = x %>% filter(pp == 0 & n > 4)
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(M), data = x)
         slope = coef(mod)[[2]]
@@ -148,7 +148,7 @@ calculateSearchRate = function(mi, mj, T) {
 
     return(aij)
 
-}
+}W
 
 density = consumption %>% group_by(g, c, Si) %>% distinct(Si, Mi, Ni) %>% mutate(NiJii = 0.1*Mi*Ni*calculateSearchRate(Mi, Mi, 0))
 
