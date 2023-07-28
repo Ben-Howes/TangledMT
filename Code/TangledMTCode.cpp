@@ -30,10 +30,10 @@ int Rfr = 10;                               // Set carrying capacity which will 
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1000000;                         // Number of time steps in the model
+const int t = 100000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
-const float probDeath = 0.15;               // Probability of individual dying if chosen.
+const float probDeath = 0.25;               // Probability of individual dying if chosen.
 double probImm = 0.001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
@@ -737,9 +737,15 @@ void kill(vector <double> (&cellPopInd)[numCells][4], double prob, int cell, int
     if(pop > 0) { 
 
     int chosenIndex;
+    double G;
+
+    chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
+    G = G0*pow(cellPopInd[cell][0][chosenIndex], 0.25);
+
+    prob = prob/G;
+
 
         if (uniform(eng) <= prob) {
-            chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
             removeInd(cellPopInd, cell, chosenIndex, cellPopSpec);
         }
     }
@@ -1144,7 +1150,8 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
         H = H/traits[chosenSpec][0];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
 
-        stream << gen + 1 << " " << i+1 << " " << chosenSpec+1 << " " << traits[chosenSpec][0] << " " << H << " " << 1/G << " " << pOff << "\n";
+        stream << gen + 1 << " " << i+1 << " " << chosenSpec+1 << " " << traits[chosenSpec][0] << " " << H << " " << 1/G << " " << 
+        pOff << " " << probDeath/pow(traits[chosenSpec][0], 0.25) << "\n";
 
         }
     }

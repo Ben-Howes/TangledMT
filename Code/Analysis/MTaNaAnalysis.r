@@ -65,7 +65,7 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M),
     scale_colour_viridis_d(end = 0.7)
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0 & n > 4)
+    x = x %>% filter(pp == 0 & n > )
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(M), data = x)
         slope = coef(mod)[[2]]
@@ -189,3 +189,6 @@ testMat = testMat[order(as.numeric(row.names(testMat))), ]
 testMat[testMat < 1] = 0 
 
 plotmat(testMat, relsize = 0.8)
+
+
+generate a for loop that counts to 10
