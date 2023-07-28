@@ -47,6 +47,7 @@ double k = 8.6173*(10^-5);                  // Boltzmann constant
 double r0 = 10;                              // Multiplier for gain in mass of primary producers
 double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
 double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
+double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
 
 ///////////////////////
 // Define Variables //
@@ -321,6 +322,15 @@ int main(int argc, char *argv[]) {
         // store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
         createTraits(traits, eng, ppProb);
         store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
+
+        // Calculate G0 based on minimum mass of a species
+        double minMi = traits[0][0];
+        for (int i = 0; i < numSpec; i++){if(traits[i][0] < minMi){minMi = traits[i][0];}}
+        G0 = 1/pow(minMi, 0.25);
+
+        cout << "Minimum mass is " << minMi << " and G0 is " << G0 << endl;
+
+        // Store parameters used in model
         storeParam("/Parameters.txt", outpath);
 
         // Make default landscape based on rows, columns and numCells provided (aka all cells forest)
@@ -480,6 +490,7 @@ void storeParam(string fileName, string outpath) {
     file << "PP_Gain_Multiplier" << " r0 " << r0 << "\n";
     file << "Carrying_Capactiy" << " K0 " << K0 << "\n";
     file << "Interference" << " I0 " << I0 << "\n";
+    file << "Generation_Constant" << " G0 " << G0 << "\n";
 
     file.close();
 
