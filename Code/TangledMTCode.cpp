@@ -48,6 +48,7 @@ double r0 = 10;                              // Multiplier for gain in mass of p
 double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
 double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
 double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
+double alpha = 1;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
 
 ///////////////////////
 // Define Variables //
@@ -491,6 +492,7 @@ void storeParam(string fileName, string outpath) {
     file << "Carrying_Capactiy" << " K0 " << K0 << "\n";
     file << "Interference" << " I0 " << I0 << "\n";
     file << "Generation_Constant" << " G0 " << G0 << "\n";
+    file << "pOff_Slope" << " alpha " << alpha << "\n";
 
     file.close();
 
@@ -709,9 +711,15 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*std::pow(cellPopInd[cell][1][chosenIndex], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
-        G = pow(cellPopInd[cell][1][chosenIndex], 0.25);
+        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25);
         H = H/cellPopInd[cell][1][chosenIndex];
-        pOff = 1/(1 + exp(-(1/G)*(H - 0.5)));
+        pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
+
+        if(pOff == (1/G)) {
+            cout << "Maximum pOff hit" << endl;
+            cout << "Mass is " << cellPopInd[cell][1][chosenIndex] << " maximum pOff is " << 1/G << " and pOff is " << pOff << endl;
+            exit(0);
+        }
 
         if (uniform(eng) <= pOff) {
             int mutSpec = mutation(cellPopInd, probMut, chosenSpec, eng);

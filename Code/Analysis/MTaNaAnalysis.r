@@ -156,9 +156,11 @@ joined = left_join(gain, loss, by = join_by(Si == Sj, g, c)) %>% left_join(z) %>
     mutate(H = gain - loss - NiJii - z) %>% 
     mutate(HM = H/Mi)
 
+G0 = 1/(min(traits$M)^0.25)
+
 joined = joined %>% left_join(dplyr::select(traits, s, pp), by = join_by(Si == s)) %>%
     mutate(gain = ifelse(pp == 1, Mi*(1 - (Ni*Mi)/(10*(Mi^0.25))), gain),
-    H = ifelse(pp == 1, gain - loss - z, H), HM = (H/Mi), pOff = (1 / (1 + exp(-((1/(100*(Mi^0.25))))*(HM - 0.5)))))
+    H = ifelse(pp == 1, gain - loss - z, H), HM = (H/Mi), pOff = (1/(G0*(Mi^0.25)))*(1 / (1 + exp(-1*(HM - 0.5)))))
 
 ggplot(filter(joined, Si == 11), aes(g, Ni, col = cut(pOff, c(-Inf, 0.15, Inf)))) +
     geom_point(size = 2) +
