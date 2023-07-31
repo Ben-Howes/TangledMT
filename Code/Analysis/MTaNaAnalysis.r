@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -15,7 +15,7 @@ setwd(gpath)
 totalPop = read_delim("totalPop.txt", col_names = FALSE) %>%
     rename(g = 1, n = 2)
 cellPopSpec = read_delim("cellPopSpec.txt", col_names = FALSE) %>%
-    rename(g = 1, c = 2, s = 3, n = 4, M = 5, pp = 6)
+    rename(g = 1, c = 2, s = 3, n = 4, biomass = 5, M = 6, pp = 7)
 totalPopSpec = read_delim("totalPopSpec.txt", col_names = FALSE) %>%
     rename(g = 1, s = 2, n = 3)
 traits = read_delim("../traits.txt", col_names = FALSE) %>%
@@ -54,7 +54,7 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)) %>% slice_max(n, n = 100),
 # ggsave(paste0(gpath, "../../../../Paper/Figures/InitialMTaNaFauna/SAD.pdf"), width = 18, height = 10)
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M), log10(n), col = as.factor(pp))) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 9), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
@@ -65,13 +65,13 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M),
     scale_colour_viridis_d(end = 0.7)
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0 & n > )
+    x = x %>% filter(pp == 0 & n > 9)
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(M), data = x)
         slope = coef(mod)[[2]]
         out = x %>% distinct(g, c) %>% mutate(dam = slope)
         return(out)
-        }
+    }
 }
 
 damuth = cellPopSpec %>% 
@@ -120,6 +120,42 @@ ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill 
     theme(text = element_text(size = 30),
     axis.text.y = element_blank()) + 
     scale_fill_viridis_c()
+
+################################
+## Reproduction Data
+################################
+
+reproduction = read_delim(paste0(gpath, "reproduction.txt"), col_names = FALSE) %>% 
+    rename(g = 1, c = 2, s = 3, m = 4, H = 5, pOffMax = 6, pOff = 7, pDeath = 8) %>%
+    mutate(HM = H/m, .after = H)
+
+ggplot(reproduction, aes(g, pOff/pOffMax, col = log10(m), group = log10(m))) +
+    geom_line(linewidth = 1) +
+    theme_classic() +
+    labs(x = "Time", y = "Max Probablity of Reproduction %") +
+    theme(text = element_text(size = 30)) +
+    scale_colour_viridis_c()
+
+ggplot(reproduction, aes(g, pOff - pDeath, col = log10(m), group = log10(m))) +
+    geom_line(linewidth = 1) +
+    theme_classic() +
+    labs(x = "Time", y = "(Probability of Reproduction) - (Probability of Death)") +
+    theme(text = element_text(size = 30)) +
+    scale_colour_viridis_c() +
+    geom_hline(yintercept = 0, linetype = "dashed")
+
+ggplot(reproduction, aes(log10(m), pOff)) + 
+    geom_point(size = 2.5, shape = 1) + 
+    geom_line(aes(log10(m), pOffMax), linewidth = 2, col = "blue") +
+    geom_line(aes(log10(m), pDeath), linewidth = 2, col = "red") +
+    theme_classic() +
+    labs(x = "Log10(Body Mass)", y = "Probability of Reproduction",
+    title = "Probability of Reproduction\nBlue Line is Maximum Probability of Reproduction\nRed Line is Probability of Death") +
+    theme(text = element_text(size = 30))
+
+################################
+## Consumption Rate
+################################
 
 ### Analyse consumption data
 consumption = read_delim(paste0(gpath, "consumptionRate.txt"), col_names = FALSE) %>%
@@ -170,25 +206,3 @@ ggplot(filter(joined, Si == 11), aes(g, Ni, col = cut(pOff, c(-Inf, 0.15, Inf)))
     theme_classic() +
     theme(text = element_text(size = 30))
 
-###############################
-## Food Web
-###############################
-
-library(diagram)
-
-web = test1
-
-## Change to be names of species i and j in first two columns
-web = web %>% relocate(Si, Sj, .before = g)
-
-testMat = web %>% mutate(eNjJij = eNjJij/Mi) %>% dplyr::select(Si, Sj, eNjJij) %>% pivot_wider(names_from = Sj, values_from = eNjJij, values_fill = 0) %>%
-    column_to_rownames("Si")
-
-testMat = testMat[, order(as.numeric(colnames(testMat)))]
-testMat = testMat[order(as.numeric(row.names(testMat))), ]
-testMat[testMat < 1] = 0 
-
-plotmat(testMat, relsize = 0.8)
-
-
-generate a for loop that counts to 10
