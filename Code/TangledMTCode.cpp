@@ -32,7 +32,7 @@ const int numSpec = 1024;                    // Number of species in the model, 
 const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
-const float probDeath = 0.35;               // Probability of individual dying if chosen.
+const float probDeath = 0.15;               // Probability of individual dying if chosen.
 double probImm = 0.001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
