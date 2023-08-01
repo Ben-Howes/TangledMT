@@ -29,7 +29,7 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 5000000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.35;               // Probability of individual dying if chosen.
