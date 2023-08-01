@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_2/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -142,7 +142,7 @@ ggplot(reproduction, aes(g, pOff - pDeath, col = log10(m), group = log10(m))) +
     labs(x = "Time", y = "(Probability of Reproduction) - (Probability of Death)") +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c() +
-    geom_hline(yintercept = 0, linetype = "dashed")
+    geom_hline(yintercept = 0, linetype = "dashed", linewidth = 2)
 
 ggplot(reproduction, aes(log10(m), pOff)) + 
     geom_point(size = 2.5, shape = 1) + 

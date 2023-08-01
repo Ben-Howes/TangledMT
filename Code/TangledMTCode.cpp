@@ -29,12 +29,11 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1000000;                         // Number of time steps in the model
+const int t = 5000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
-const float probDeath = 0.35;               // Probability of individual dying if chosen.
+const float probDeath = 0.2;               // Probability of individual dying if chosen.
 double probImm = 0.001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
-double probImmFrag = 0.001;                  // Probability of an individual immigrating into a cell after fragmentation (individual of a random species suddenly occurring in a cell).
 float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
 double dispDist = 1;                         // Store dispersal distance
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
@@ -72,7 +71,6 @@ int cellList[numCells][2];                     // Lists numbers of cell (e,g wit
 vector <int> forestCellList;                    // Lists cells that are forested.
 int cellOrder[numCells];                        // Array to store the randomly selected order of cells for dynamics.
 double distMatrix[numCells][numCells];          // Stores distances between all cells in the landscape.
-double probDispDen = 0;                         // Store density dependent probability of diserpsal
 int seed;
 int immNum = 0;                                 // Counts number of immigrations that occur
 int dispNum = 0;                                // Counts number of dispersals that occur
@@ -103,7 +101,6 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
 void getDistances(double (&distArray)[numCells][numCells], int landscapeCoords[][2], int cellRows, int cellCols);
 void dispersal(vector <double> (&cellPopInd)[numCells][4], double (&distArray)[numCells][numCells], double prob, int cell, int numSpec, int &dispNum, mt19937& eng); 
 vector<int> findValidCells(double (&distArray)[numCells][numCells], double distance, int cell);
-double dispersalProb(vector <double> (&cellPopInd)[numCells][4], int cell, double probDeath, double probDisp);
 void fillCellList(int landscapeArray[][cellRows], int cellList[][2], int cellCols, int cellRows);
 void getForestCellList(int cellList[][2], vector <int> &forestCellList);
 void removeInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenIndex, vector <double> (&cellPopSpec)[numCells][3]);
@@ -389,13 +386,8 @@ int main(int argc, char *argv[]) {
             int cell = cellOrder[j];
             kill(cellPopInd, probDeath, cell, numSpec, eng);
             reproduction(cellPopInd, cellList, traits, cell, numSpec, i, eng);
-            // // probDispDen = dispersalProb(cellPopInd, cell, probDeath, probDisp);
             dispersal(cellPopInd, distArray, probDisp, cell, numSpec, dispNum, eng); // Now set to a constant probability
-            if(fragmentation == 0) {
-                immigration(cellPopInd, probImm, cell, numSpec, immNum, eng);
-            } else {
-                immigration(cellPopInd, probImmFrag, j, numSpec, immNum, eng);
-            }
+            immigration(cellPopInd, probImm, cell, numSpec, immNum, eng);
         }
 
         // Calculate richness and abundance metrics
@@ -537,23 +529,6 @@ void storeVecEnd(vector <int> vec[], int cols, string fileName, string outpath) 
     out.close();
 }
 
-double dispersalProb(vector <double> (&cellPopInd)[numCells][4], int cell, double probDeath, double probDisp) {
-
-    double Nequ, pDispEff, cutOff, grad;
-    int pop = cellPopInd[cell][0].size();
-    pDispEff = probDisp;
-
-    cutOff = (3+log10((1-probDeath)/probDeath));        // Cut off for density dependent linear, max is 47.5
-
-    // Make density dependence linear with a cut-off
-    
-    grad = 1/cutOff;
-    if(pop > cutOff) {pDispEff = probDisp;} else {pDispEff = (grad*pop)*probDisp;}
-
-    return pDispEff;
-
-}
-
 vector <int> findValidCells(double (&distArray)[numCells][numCells], double distance, int cell) {
 
     vector<int>validCells;
@@ -693,7 +668,10 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
         // as species are not cannibalistic
         if(traits[Sj][1] == 0 && Si != Sj) {
             Nj = cellPopSpec[cell][1][i];
-            Mj = cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i]; // Calculate average mass of Mj in the cell
+            // Calculate average mass of Mj in the cell
+            // If we want a truly individual based model then we should
+            // calculate the consumption rate of each individual feeding on our focal species (see addConsumptionRate branch)
+            Mj = cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i];
             H -= Nj*consumptionRate(Mj, Mi, 0, traits, Ni);
         }
     }
