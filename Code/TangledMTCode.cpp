@@ -29,7 +29,7 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 5000000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.35;               // Probability of individual dying if chosen.
@@ -60,13 +60,14 @@ int landscapeArray[cellCols][cellRows];     // Landscape array for filling with 
 int landscapeCoords[numCells][2];           // Coordinates (x,y) of each cell in the landscape for use in distance calculations.
 double distArray[numCells][numCells];       // Distance from each cell to every other cell, for use in dispersal and interactions.
 
-static double J[numSpec][numSpec];                 // J-matrix which includes interactions between all species, with number of rows and cols equal to number of species. 
 static double traits[numSpec][2];                        // Stores base traits of species, mass, primary producer etc
 int totalPop = 0;                           // Stores the total population across all cells in the model at a given generation.
 vector <int> cellPop[2];                    // Stores the total population in each cell at a given generation.
 vector <int> totalPopSpec[2];                      // Stores the total population of each species at a given generation.
 vector <double> cellPopSpec[numCells][3];                 // Stores 0 = speces, 1 = abundance of species in cell, 2 = biomass of species in cell
 vector <double> cellPopInd[numCells][4];             // Stores which individuals are in which cells (0 = species, 1 = mass, 2 = primary producer, 3 = dispersal);
+vector <vector <double>>  consumptionMatrix[numCells];  // Store the consumption rate between all species in  cell. This vector of vectors will have the same number of vectors as 
+                                                        // the number of individuals in the cell, and the number of columns of the number of species (elements in vectors)
 int totalRich = 0;                          // Stores the total species richness of the model at a given generation.
 int cellList[numCells][2];                     // Lists numbers of cell (e,g with 6 cells it would read, 0,1,2,3,4,5), and whether they are non-forest or forest (0 = non-forest, 1 = forest).
 vector <int> forestCellList;                    // Lists cells that are forested.
@@ -95,8 +96,8 @@ void immigration(vector <double> (&cellPopInd)[numCells][4], double prob, int ce
 void kill(vector <double> (&cellPopInd)[numCells][4], double prob, int cell, int numSpec, mt19937& eng);
 void reproduction(vector <double> (&cellPopInd)[numCells][4], 
 int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpec, int gen, mt19937& eng);
-double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int ind,
-    vector <double> (&cellPopSpec)[numCells][3], int gen);
+double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int chosenIndex,
+    vector <double> (&cellPopSpec)[numCells][3], vector <vector <double>> (&consumptionMatrix)[numCells], int gen);
 void shuffle(int arr[], int arrElements, mt19937& eng);
 int randomIndex(vector <double> (&cellPopInd)[numCells][4], int pop, int numSpec, int cell, mt19937& eng);
 void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int numCells);
@@ -107,7 +108,8 @@ double dispersalProb(vector <double> (&cellPopInd)[numCells][4], int cell, doubl
 void fillCellList(int landscapeArray[][cellRows], int cellList[][2], int cellCols, int cellRows);
 void getForestCellList(int cellList[][2], vector <int> &forestCellList);
 void removeInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenIndex, vector <double> (&cellPopSpec)[numCells][3]);
-void addInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenSpec, double (&traits)[numSpec][2], vector <double> (&cellPopSpec)[numCells][3]);
+void addInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenSpec, double (&traits)[numSpec][2], vector <double> (&cellPopSpec)[numCells][3],
+vector <vector <double>> (&consumptionMatrix)[numCells]);
 
 void store2ColFiles(ofstream &stream, int firstCol, int secondCol);
 void storeVec(ofstream &stream, vector <int> vec[], int gen, int cols);
@@ -138,6 +140,7 @@ double arrhenius(double E);
 // void storeConsumptionRate(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]);
 void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]);
 double profitability(int Si, int Sj, double (&traits)[numSpec][2]);
+void storeConsumptionMatrix(ofstream &stream, vector <vector <double>> (&consumptionMatrix)[numCells], int gen, double (&traits)[numSpec][2]);
 
 ///////////////////////////////
 //          Templates        //
@@ -295,7 +298,6 @@ int main(int argc, char *argv[]) {
     // or if we need to create a new community
     if(fragmentation == 1) {
 
-        read2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
         read2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
 
         // Read in predefined landscape with 1s for forest cells and 0 for non-forest cells
@@ -379,7 +381,9 @@ int main(int argc, char *argv[]) {
     s_consumptionRate.open(respath + "/consumptionRate.txt");
     ofstream s_reproduction;
     s_reproduction.open(respath + "/reproduction.txt");
-    
+    ofstream s_consumptionMatrix;
+    s_consumptionMatrix.open(respath + "/consumptionMatrix.txt");
+
     // Start model dynamics //
     ///////////////////////////////////////////////////////////////////////////////////////
     for (int i = 0; i < t; i++) {
@@ -416,6 +420,7 @@ int main(int argc, char *argv[]) {
             storeCellPopSpec(s_cellPopSpec, cellPopSpec, i, traits);
             // storeConsumptionRate(s_consumptionRate,  cellPopInd, i, traits);
             storeReproduction(s_reproduction, cellPopInd, i, traits);
+            storeConsumptionMatrix(s_consumptionMatrix, consumptionMatrix, i, traits);
 
             //Live output to console
             std::cout << "Time Step: " << i + 1 << "/" << t << " | Total Pop: " << totalPop << " | Total Richness: " << totalRich << "\n";
@@ -437,7 +442,7 @@ int main(int argc, char *argv[]) {
     }
     // Close all streams to files
     s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close();
-    s_consumptionRate.close(); s_reproduction.close();
+    s_consumptionRate.close(); s_reproduction.close(); s_consumptionMatrix.close();
 
     // end timer FC
     std::cout << "Elapsed(s)=" << since(start).count() << endl; 
@@ -597,7 +602,7 @@ double prob, int cell, int numSpec, int &dispNum, mt19937& eng) {
                 // Remove individual from cell it was in
                 removeInd(cellPopInd, cell, chosenIndex, cellPopSpec);
                 // Add individual to dispCell
-                addInd(cellPopInd, dispCell, chosenSpec, traits, cellPopSpec);
+                addInd(cellPopInd, dispCell, chosenSpec, traits, cellPopSpec, consumptionMatrix);
                 // Count dispersal
                 dispNum++;                                    
             }
@@ -637,47 +642,39 @@ void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int num
     }
 }
 
-double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int ind,
-    vector <double> (&cellPopSpec)[numCells][3], int gen) {
+double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double (&traits)[numSpec][2], int cell, int numSpec, int chosenIndex,
+    vector <double> (&cellPopSpec)[numCells][3], vector <vector <double>> (&consumptionMatrix)[numCells], int gen) {
 
     double H = 0; // Store energy state after interactions
     double CE = 0.5; // Conversation efficiency
-    int Si = cellPopInd[cell][0][ind]; // Store identity of the focal species
-    double Mi = cellPopInd[cell][1][ind]; // Mass of chosen individual
+    int Si = cellPopInd[cell][0][chosenIndex]; // Store identity of the focal species
+    double Mi = cellPopInd[cell][1][chosenIndex]; // Mass of chosen individual
     double Mj; // Store mass of consumer/other species, which will be calculated from the average mass of all individuals of that species
     // in the cell (cellPopSpec[cell][3][spec]/cellPopSpec[cell][2][spec])
     int Ni; // Store number of individuals of same species as focal individual in cell
     int Sj; // Store identities of non-focal species
     int Nj; // Store abundance of non-focal species in the cell
-    double Ii = 0; // Interference term for focal individual i
+    double Ii = 0; // Interference term for focal individual
+    int cellPopSpecIndex; // Store index of focal species in cellPopSpec
 
     double Xi; // Biomass of population of focal species i in cell C (primary producers onlu)
     double Ki; // Carrying capacity of population of focal individual i (primary prodiucers onlu)
     
     for (int k = 0; k < cellPopSpec[cell][0].size(); k++) {
         if(Si == cellPopSpec[cell][0][k]) {
-            Ni = cellPopSpec[cell][1][k]; 
+            Ni = cellPopSpec[cell][1][k];
+            cellPopSpecIndex = k;
             break;
         }
     }
-    
+
+    // GAIN OF MASS/ENERGY
     // Check if focal species is a primary producer or not (1 = primary producer)
-    if(cellPopInd[cell][2][ind] == 0) {
-        // Loop over consumption rate for our focal species on 
-        // resources (all species) in the same cell
+    if(cellPopInd[cell][2][chosenIndex] == 0) {
         for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
-            Sj = cellPopSpec[cell][0][i];
             Nj = cellPopSpec[cell][1][i];
-            Mj = cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i]; // Divide total biomass by number of individuals
-            // If the focal individual is the same species as the chosen individual
-            // then don't calculate interactions (no cannibalism)
-            if(Si != Sj) {
-                H += CE*Nj*consumptionRate(Mi, Mj, 0, traits, Nj);
-            }
+            H += CE*Nj*consumptionMatrix[cell][chosenIndex][i];
         }
-    // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
-    Ii = Ni*searchRate(Mi, Mi, 0, traits);
-    H -= I0*Ii*Mi;
     } else {
         Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
         Ki = K0*pow(Mi, 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
@@ -685,17 +682,16 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][4], double 
         H += r0*pow(Mi, -0.25)*Mi*(1-(Xi/Ki));
     }
 
-    // Loop over consumption of focal species
-    for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
-        Sj = cellPopSpec[cell][0][i];
-        // Check if primary producer as primary producers can't consume other species
-        // Also check if it's it's the same species as the focal species
-        // as species are not cannibalistic
-        if(traits[Sj][1] == 0 && Si != Sj) {
-            Nj = cellPopSpec[cell][1][i];
-            Mj = cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i]; // Calculate average mass of Mj in the cell
-            H -= Nj*consumptionRate(Mj, Mi, 0, traits, Ni);
-        }
+    // LOSS OF MASS/ENERGY
+    // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
+    if(cellPopInd[cell][2][chosenIndex] == 0) {
+        Ii = Ni*searchRate(Mi, Mi, 0, traits);
+        H -= I0*Ii*Mi;
+    }
+    
+    // Calculate consumption of focal individual by other species
+    for (int i = 0; i < consumptionMatrix[cell].size(); i++) {
+        H -= consumptionMatrix[cell][i][cellPopSpecIndex];
     }
 
     return H;
@@ -715,7 +711,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         cellMass = getCellMass(cell, cellPopInd); // Get the total mass of all individuals in the cell
         chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
         chosenSpec = cellPopInd[cell][0][chosenIndex];
-        H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
+        H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, consumptionMatrix, gen) - 
             (B0*pow(cellPopInd[cell][1][chosenIndex], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25);
@@ -730,7 +726,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
 
         if (uniform(eng) <= pOff) {
             int mutSpec = mutation(cellPopInd, probMut, chosenSpec, eng);
-            addInd(cellPopInd, cell, mutSpec, traits, cellPopSpec);
+            addInd(cellPopInd, cell, mutSpec, traits, cellPopSpec, consumptionMatrix);
         }
     }
 }
@@ -789,7 +785,7 @@ void immigration(vector <double> (&cellPopInd)[numCells][4], double prob, int ce
 
     if(uniform(eng) <= prob) {  
         chosenSpec = chooseInRange(0, numSpec-1, eng);
-        addInd(cellPopInd, cell, chosenSpec, traits, cellPopSpec);
+        addInd(cellPopInd, cell, chosenSpec, traits, cellPopSpec, consumptionMatrix);
         immNum++;
     }
 }
@@ -807,7 +803,7 @@ void initialisePop(vector <double> (&cellPopInd)[numCells][4], double (&traits)[
         for (int j = 0; j < initPop; j++) {
             chosenSpec = chooseInRange(0, numSpec-1, eng); 
 
-            addInd(cellPopInd, i, chosenSpec, traits, cellPopSpec);
+            addInd(cellPopInd, i, chosenSpec, traits, cellPopSpec, consumptionMatrix);
         }
     }
 
@@ -843,48 +839,145 @@ void removeInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenI
 
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         if(Si == cellPopSpec[cell][0][i] && cellPopSpec[cell][1][i] > 1) {
-            // Remove individul form cellpopspec (-1 from population)
+            // Remove individul from cellpopspec (-1 from population)
             cellPopSpec[cell][1][i] -= 1;
             // Subtract weight of individual from total biomass of species
             cellPopSpec[cell][2][i] -= cellPopInd[cell][1][chosenIndex];
+
+            // Update consumptionMatrix as abundance has changed
+            for (int j = 0; j < consumptionMatrix[cell].size(); j++) {
+                // Calculate conumption rate if species isn't interacting with itself
+                // or a primary producer
+                if(cellPopInd[cell][2][j] == 0 && cellPopInd[cell][0][j] != cellPopSpec[cell][0][i]) {
+                    consumptionMatrix[cell][j][i] = consumptionRate(cellPopInd[cell][1][j],
+                    cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i], 0, traits, cellPopSpec[cell][1][i]);
+                } else {
+                    consumptionMatrix[cell][j][i] = 0;
+                }
+            }
+            
             break;
         } else if (Si == cellPopSpec[cell][0][i] && cellPopSpec[cell][1][i] == 1) {
             cellPopSpec[cell][0].erase(cellPopSpec[cell][0].begin() + i);
             cellPopSpec[cell][1].erase(cellPopSpec[cell][1].begin() + i);
             cellPopSpec[cell][2].erase(cellPopSpec[cell][2].begin() + i);
+            // Remove from consumptionMatrix (element in vector/column)
+            for (int j = 0; j < consumptionMatrix[cell].size(); j++) {
+                consumptionMatrix[cell][j].erase(consumptionMatrix[cell][j].begin() + i);
+            }
+            
         }
     }
 
+    // Remove from cellPopInd
     for (int j = 0; j < 4; j++) {cellPopInd[cell][j].erase(cellPopInd[cell][j].begin() + chosenIndex);}
+
+    // Remove vector of consumptionMatrix for individual (row)
+    consumptionMatrix[cell].erase(consumptionMatrix[cell].begin() + chosenIndex);
     
 
 }
 
 // Function to add a species which may not already exist in the cell - immigration, mutation, initialisation
-void addInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenSpec, double (&traits)[numSpec][2], vector <double> (&cellPopSpec)[numCells][3]) {
+void addInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenSpec, double (&traits)[numSpec][2], vector <double> (&cellPopSpec)[numCells][3],
+vector <vector <double>> (&consumptionMatrix)[numCells]) {
 
+    // Add individual to our database of individuals in each cell
     cellPopInd[cell][0].push_back(chosenSpec);
     cellPopInd[cell][1].push_back(traits[chosenSpec][0]);
     cellPopInd[cell][2].push_back(traits[chosenSpec][1]);
     cellPopInd[cell][3].push_back(1); // Placeholder for dispersal ability
 
+    // Add to the overall cellpopspec data either as a new species or an existing one
+    // We will also use the same loops to update the consumptionMatrix
+    
+    // Set the boolean exist to false so we assume the species doesn't exist in the cell
     bool exists = false;
+
+    // Used to temporarily store dummy consumption rates for the new individual
+    vector <double> tempVec;
+
+    // Look to see if the species already exists in the cell
+    // If it does then add to it's overall population and biomass
+    // Add a new vector to the consumptionMatrix for the new individual
+    // and update the column for the species in consumptionMatrix since it already exists
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         if(chosenSpec == cellPopSpec[cell][0][i]) {
             exists = true;
             cellPopSpec[cell][1][i] += 1;
             cellPopSpec[cell][2][i] += traits[chosenSpec][0];
+
+            // Make new vector for consumptionMatrix of new individual
+            // stored in tempVec
+            for (int j = 0; j < cellPopSpec[cell][0].size(); j++) {
+                // Calculate consumption rate if the species is not the same as the individual
+                // and the species is not a primary producer
+                if(traits[chosenSpec][1] == 0 && chosenSpec != cellPopSpec[cell][0][j]) {
+                    tempVec.push_back(consumptionRate(traits[chosenSpec][0], 
+                    cellPopSpec[cell][2][j]/cellPopSpec[cell][1][j], 0, traits, cellPopSpec[cell][1][j]));
+                } else {
+                    tempVec.push_back(0);
+                }
+            }
+
+            // Add tempVec to consumptionMatrix
+            consumptionMatrix[cell].push_back(tempVec);
+
+            // Update consumption rates of our focal individual as its abundance has changed
+            for (int k = 0; k < consumptionMatrix[cell].size(); k++) {
+                 // Calculate consumption rate if the species is not the same as the individual
+                // and the species is not a primary producer
+                if(cellPopInd[cell][2][k] == 0 && chosenSpec != cellPopInd[cell][0][k]) {
+                    consumptionMatrix[cell][k][i] = consumptionRate(cellPopInd[cell][1][k], 
+                    cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i], 0, traits, cellPopSpec[cell][1][i]);
+                } else {
+                    consumptionMatrix[cell][k][i] = 0;
+                }
+            }
             break;
         }
     }
 
+
+    // If the species doesn't already exist in the cell
+    // Add it to the cellpopspec data - abundance and biomass
+    // And we add a new vector to the consumptionMatrix for the new individual
+    // And we add a new element to the end of all vectors for the new column in consumptionMatrix for the new species
     if(exists == false) {
         cellPopSpec[cell][0].push_back(chosenSpec);
         cellPopSpec[cell][1].push_back(1);
         cellPopSpec[cell][2].push_back(traits[chosenSpec][0]);
-    }
-    
 
+
+        // Make new vector for consumptionMatrix of new individual
+        // stored in tempVec
+        // Use cellPopSpec.size() - 1 as we push_back along all vectors in the next for loop
+        // so if we use the full size then the last vector has one too many elements
+        for (int j = 0; j < cellPopSpec[cell][0].size() - 1; j++) {
+            // Calculate consumption rate if the species is not the same as the individual
+            // and the species is not a primary producer
+            if(traits[chosenSpec][1] == 0 && chosenSpec != cellPopSpec[cell][0][j]) {
+                tempVec.push_back(consumptionRate(traits[chosenSpec][0], 
+                cellPopSpec[cell][2][j]/cellPopSpec[cell][1][j], 0, traits, cellPopSpec[cell][1][j]));
+            } else {
+                tempVec.push_back(0);
+            }
+        }
+
+        // Add tempVec to consumptionMatrix
+        consumptionMatrix[cell].push_back(tempVec);
+
+        for (int k = 0; k < consumptionMatrix[cell].size(); k++) {
+            // Calculate consumption rate if the species is not the same as the individual
+            // and the species is not a primary producer
+            if(cellPopInd[cell][2][k] == 0 && chosenSpec != cellPopInd[cell][0][k]) {
+                consumptionMatrix[cell][k].push_back(consumptionRate(cellPopInd[cell][1][k], 
+                traits[chosenSpec][0], 0, traits, 1));
+            } else {
+                consumptionMatrix[cell][k].push_back(0);
+            }
+        }
+    }
 }
 
 // Function for when a species already exists and is being replicated (maybe with intraspecific variation)
@@ -1150,7 +1243,7 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
         // Now we need to cheat and find the index of an individual of the species in cellPopInd
         // later I need to overhaul this approach
         for (int k = 0; k < cellPopInd[i][0].size(); k++) {if(cellPopInd[i][0][k] == chosenSpec){chosenIndex = k;}}
-        H = calculateInteractions(cellPopInd, traits, i, numSpec, chosenIndex, cellPopSpec, gen) - 
+        H = calculateInteractions(cellPopInd, traits, i, numSpec, chosenIndex, cellPopSpec, consumptionMatrix, gen) - 
             (B0*std::pow(traits[chosenSpec][0], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         G = G0*pow(traits[chosenSpec][0], 0.25);
@@ -1163,3 +1256,18 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
         }
     }
 }
+
+void storeConsumptionMatrix(ofstream &stream, vector <vector <double>> (&consumptionMatrix)[numCells], int gen, double (&traits)[numSpec][2]) {
+
+    for (int c = 0; c < numCells; c++) {
+        for (int i = 0; i < consumptionMatrix[c].size(); i++) {
+            stream << gen + 1 << " " << c + 1 << " ";
+            for (int j = 0; j < consumptionMatrix[c][i].size(); j++) {
+                stream << consumptionMatrix[c][i][j] << " ";
+            }
+            stream << endl;
+        }
+    }
+
+}
+

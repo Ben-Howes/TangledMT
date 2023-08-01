@@ -12,9 +12,9 @@ Rp = 0.1
 a = 1
 c = 1
 
-calculateSearchRate = function(mi, mj) {
+calculateSearchRate = function(mi) {
 
-    aij = 2*(V0)*(D0)*(mi^(0.63))*(mj^(0.21))
+    aij = 2*(V0)*(D0)*(mi^(0.63))
 
     return(aij)
 
@@ -39,7 +39,7 @@ calculateHandling = function(mi, mj) {
 
 consumptionRate = function(mi, mj, n) {
     
-    c = (calculateSearchRate(mi)*calculateAttackProb(mi, mj)*n*mj)/(1 + (calculateSearchRate(mi)*calculateAttackProb(mi, mj)*calculateHandling(mi,mj)*n))
+    c = (calculateSearchRate(mi)*calculateAttackProb(mi, mj)*mj)/(1 + (calculateSearchRate(mi)*calculateAttackProb(mi, mj)*calculateHandling(mi,mj)*n))
 
     return(c)
 
