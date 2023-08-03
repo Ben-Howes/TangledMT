@@ -29,13 +29,12 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 5000000;                         // Number of time steps in the model
+const int t = 100000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.2;               // Probability of individual dying if chosen.
 double probImm = 0.001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
-float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. This is a baseline, and will increase from this with increasing density.
-double dispDist = 1;                         // Store dispersal distance
+float probDisp = 0;                       // Probability of an individual dispersing from one cell to another cell. 
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 
 // Metabolic theory variables
@@ -47,6 +46,7 @@ double K0 = 10;                             // Weighting of carrying capacity of
 double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
 double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
 double alpha = 0.01;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
+double D0;                              // Stores normalisation constant for dispersal, which will be equal to 1/(mass of smallest species in pool)^0.63
 
 ///////////////////////
 // Define Variables //
@@ -65,7 +65,7 @@ int totalPop = 0;                           // Stores the total population acros
 vector <int> cellPop[2];                    // Stores the total population in each cell at a given generation.
 vector <int> totalPopSpec[2];                      // Stores the total population of each species at a given generation.
 vector <double> cellPopSpec[numCells][3];                 // Stores 0 = speces, 1 = abundance of species in cell, 2 = biomass of species in cell
-vector <double> cellPopInd[numCells][4];             // Stores which individuals are in which cells (0 = species, 1 = mass, 2 = primary producer, 3 = dispersal);
+vector <double> cellPopInd[numCells][4];             // Stores which individuals are in which cells (0 = species, 1 = mass, 2 = primary producer, 3 = maximum dispersal distance);
 int totalRich = 0;                          // Stores the total species richness of the model at a given generation.
 int cellList[numCells][2];                     // Lists numbers of cell (e,g with 6 cells it would read, 0,1,2,3,4,5), and whether they are non-forest or forest (0 = non-forest, 1 = forest).
 vector <int> forestCellList;                    // Lists cells that are forested.
@@ -135,6 +135,7 @@ double arrhenius(double E);
 // void storeConsumptionRate(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]);
 void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells][4], int gen, double (&traits)[numSpec][2]);
 double profitability(int Si, int Sj, double (&traits)[numSpec][2]);
+double maxDispersal(double Mi, double E);
 
 ///////////////////////////////
 //          Templates        //
@@ -325,6 +326,7 @@ int main(int argc, char *argv[]) {
         double minMi = traits[0][0];
         for (int i = 0; i < numSpec; i++){if(traits[i][0] < minMi){minMi = traits[i][0];}}
         G0 = 1/pow(minMi, 0.25);
+        D0 = 1/pow(minMi, 0.63);
 
         // Store parameters used in model
         storeParam("/Parameters.txt", outpath);
@@ -696,7 +698,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*pow(cellPopInd[cell][1][chosenIndex], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
-        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25);
+        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(0);
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
 
@@ -844,7 +846,7 @@ void addInd(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenSpec
     cellPopInd[cell][0].push_back(chosenSpec);
     cellPopInd[cell][1].push_back(traits[chosenSpec][0]);
     cellPopInd[cell][2].push_back(traits[chosenSpec][1]);
-    cellPopInd[cell][3].push_back(1); // Placeholder for dispersal ability
+    cellPopInd[cell][3].push_back(maxDispersal(traits[chosenSpec][0], 0)); // Placeholder for dispersal ability
 
     bool exists = false;
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
@@ -873,8 +875,7 @@ void baby(vector <double> (&cellPopInd)[numCells][4], int cell, int chosenIndex,
     cellPopInd[cell][0].push_back(chosenSpec);
     cellPopInd[cell][1].push_back(traits[chosenSpec][0]);
     cellPopInd[cell][2].push_back(traits[chosenSpec][1]);
-    cellPopInd[cell][3].push_back(1); // Placeholder for dispersal ability
-
+    cellPopInd[cell][3].push_back(maxDispersal(traits[chosenSpec][0], 0)); //
 }
 
 void calculateTotalPopSpec(vector <double> (&cellPopInd)[numCells][4], vector <int> (&totalPopSpec)[2]) {
@@ -1140,4 +1141,12 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
 
         }
     }
+}
+
+double maxDispersal(double Mi, double E) {
+
+    double maxDisp = D0*pow(Mi, 0.63)*arrhenius(E);
+
+    return maxDisp;
+
 }

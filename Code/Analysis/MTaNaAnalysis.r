@@ -129,6 +129,14 @@ reproduction = read_delim(paste0(gpath, "reproduction.txt"), col_names = FALSE) 
     rename(g = 1, c = 2, s = 3, m = 4, H = 5, pOffMax = 6, pOff = 7, pDeath = 8) %>%
     mutate(HM = H/m, .after = H)
 
+## Distribution of H across all time steps for all species
+ggplot(reproduction, aes(HM)) + 
+    geom_density(linewidth = 2) +
+    theme_classic() +
+    labs(x = "H'", y = "Density") +
+    theme(text = element_text(size = 30))
+
+## Proportion of maxPoff achieved per time step for each species
 ggplot(reproduction, aes(g, pOff/pOffMax, col = log10(m), group = log10(m))) +
     geom_line(linewidth = 1) +
     theme_classic() +
@@ -136,6 +144,7 @@ ggplot(reproduction, aes(g, pOff/pOffMax, col = log10(m), group = log10(m))) +
     theme(text = element_text(size = 30)) +
     scale_colour_viridis_c()
 
+## pOff - Pdeath for each species in each timestep
 ggplot(reproduction, aes(g, pOff - pDeath, col = log10(m), group = log10(m))) +
     geom_line(linewidth = 1) +
     theme_classic() +
@@ -144,6 +153,8 @@ ggplot(reproduction, aes(g, pOff - pDeath, col = log10(m), group = log10(m))) +
     scale_colour_viridis_c() +
     geom_hline(yintercept = 0, linetype = "dashed", linewidth = 2)
 
+## Probability of reproduction for each species in each time step 
+## with line for maxPoff and pDeath
 ggplot(reproduction, aes(log10(m), pOff)) + 
     geom_point(size = 2.5, shape = 1) + 
     geom_line(aes(log10(m), pOffMax), linewidth = 2, col = "blue") +
@@ -151,6 +162,21 @@ ggplot(reproduction, aes(log10(m), pOff)) +
     theme_classic() +
     labs(x = "Log10(Body Mass)", y = "Probability of Reproduction",
     title = "Probability of Reproduction\nBlue Line is Maximum Probability of Reproduction\nRed Line is Probability of Death") +
+    theme(text = element_text(size = 30))
+
+## Maximum average number of offspring produced by an individual will be pR/pZ, wheree pR is it it's max value of 1/G
+reproduction = reproduction %>% mutate(avgOffspring = pOff/pDeath, maxOffspring = pOffMax/pDeath)
+
+ggplot(reproduction, aes(log10(m), maxOffspring)) +
+    geom_point(size = 2.5, shape = 1) + 
+    theme_classic() +
+    labs(x = "Log10(Body Mass)", y = "Maximum Number of Offspring in a lifetime") +
+    theme(text = element_text(size = 30))
+
+ggplot(reproduction, aes(log10(m), avgOffspring)) +
+    geom_point(size = 2.5, shape = 1) + 
+    theme_classic() +
+    labs(x = "Log10(Body Mass)", y = "Average Number of Offspring in a lifetime") +
     theme(text = element_text(size = 30))
 
 ################################

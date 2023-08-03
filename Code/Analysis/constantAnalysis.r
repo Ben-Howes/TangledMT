@@ -21,19 +21,19 @@ paths = list.files(gpath)
 
 ## Read in parameters, seed, and cellPopInd for each run - join cellPopInd with parameters
 
-cellPopSpec = function(path) {
+getCellPopSpec = function(path) {
     params = read_table(paste0(gpath, path, "/Parameters.txt"), col_names = F) %>%
         dplyr::select(X2, X3) %>% rename("constant" = 1, "value" = 2) %>%
         pivot_wider(names_from = "constant", values_from = "value")
     cellPopSpec = read_table(paste0(gpath, path, "/Results/cellPopSpec.txt"), col_names = F) %>%
-        rename("g" = 1, "c" = 2, "s" = 3, "n" = 4, "m" = 5, "pp" = 6) %>%
+        rename("g" = 1, "c" = 2, "s" = 3, "n" = 4, "M" = 5, "m" = 6, "pp" = 7) %>%
         mutate(.before = "g", seed = path)
     cellPopSpec = cbind(cellPopSpec, params)
 
     return(cellPopSpec)
 }
 
-cellPopSpec = mclapply(paths, cellPopSpec, mc.cores = 6) %>% 
+cellPopSpec = mclapply(paths, getCellPopSpec, mc.cores = 6) %>% 
     bind_rows() %>%
     filter(g > 500000)
 
