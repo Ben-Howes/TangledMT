@@ -67,7 +67,7 @@ ggplot(totalRich, aes(g, log10(totalRich), col = as.factor(I0), group = as.facto
     geom_line(size = 1) +
     scale_colour_viridis_d() + 
     labs(x = "Time", y = "Log10(Richness)", col = "Intraspecific\nCompetition (I0)",
-    title = "nRows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
+    title = "Rows = Primary Producer Growth Rate (r0)\nCols = Primary Producer Carrying Capacity (K0)") +
     scale_x_continuous(n.breaks = 3) + 
     theme_classic() + 
     theme(text = element_text(size = 30))
@@ -103,7 +103,7 @@ ggplot(avgMass, aes(g, log10(avgMass), col = as.factor(I0), group = as.factor(se
 ## based on the equations we've set
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0 & n > 5)
+    x = x %>% filter(pp == 0 & n > 9)
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(m), data = x)
         slope = coef(mod)[[2]]
@@ -131,3 +131,33 @@ ggplot(damuth, aes(g, dam, col = as.factor(I0), group = as.factor(seed))) +
 
 
 ggsave(paste0(gpath, "../../Paper/Figures/MTaNaConstants/n>5Damuth.png"), width = 18, height = 10)
+
+
+#################
+## Reproduction
+#################
+
+getReproduction = function(path) {
+    params = read_table(paste0(gpath, path, "/Parameters.txt"), col_names = F) %>%
+        dplyr::select(X2, X3) %>% rename("constant" = 1, "value" = 2) %>%
+        pivot_wider(names_from = "constant", values_from = "value")
+    reproduction = read_table(paste0(gpath, path, "/Results/reproduction.txt"), col_names = F) %>%
+        rename(g = 1, c = 2, s = 3, m = 4, H = 5, pOffMax = 6, pOff = 7, pDeath = 8) %>%
+        mutate(.before = "g", seed = path)
+    reproduction = cbind(reproduction, params)
+
+    return(reproduction)
+}
+
+reproduction = mclapply(paths, getReproduction, mc.cores = 6) %>% 
+    bind_rows() %>%
+    filter(g > 500000) %>%
+    mutate(HM = H/m, .after = H)
+
+reproduction %>% group_by(r0, K0, I0) %>%
+    summarise(minH = min(HM, na.rm = T), maxH = max(HM, na.rm = T)) %>%
+    print(n = 100)
+
+ggplot(reproduction, aes(as.factor(IO), HM)) +
+    facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
+    geom_boxplot()
