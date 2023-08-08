@@ -24,12 +24,12 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 1;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 1;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 5;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 5;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 100000;                         // Number of time steps in the model
+const int t = 1000000;                         // Number of time steps in the model
 const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.2;               // Probability of individual dying if chosen.
@@ -74,6 +74,7 @@ double distMatrix[numCells][numCells];          // Stores distances between all 
 int seed;
 int immNum = 0;                                 // Counts number of immigrations that occur
 int dispNum = 0;                                // Counts number of dispersals that occur
+double maxDisp = 0;                             // Stores maximum dispersal distance        
 
 static const double two_pi  = 2.0*3.141592653;
 
@@ -424,6 +425,7 @@ int main(int argc, char *argv[]) {
     if(fragmentation == 0) {
         storeNum(immNum, "/total_Immigrations.txt", finpath);
         storeNum(dispNum, "/total_Dispersals.txt", finpath);
+        storeNum(maxDisp, "/maximum_Dispersal.txt", finpath);
         // storeVecEnd(cellPopInd, 3, "/final_cellPopInd.txt", finpath);
     }
     // Store final outputs for fragment runs
@@ -568,6 +570,13 @@ double prob, int cell, int numSpec, int &dispNum, mt19937& eng) {
             // Calculate distance individual is dispersing
             disp = dispersalDist(cellPopInd[cell][1][chosenIndex], 0, eng);
 
+            // Check if this is the largest dispersal distance
+            // for storing
+            if(disp > maxDisp) {
+                maxDisp = disp;
+            }
+            
+
             if(disp >= 1) {  // If disp less than 1 then the individual can't disperse
                 validCells = findValidCells(distArray, disp, cell);
                 int arr[validCells.size()]; 
@@ -650,6 +659,8 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
     if(cellPopInd[cell][2][ind] == 0) {
         // Loop over consumption rate for our focal species on 
         // resources (all species) in the same cell
+        // Try making it parallel
+        #pragma omp parallel for private(Sj, Nj, Mj) reduction(+:H)
         for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
             Sj = cellPopSpec[cell][0][i];
             Nj = cellPopSpec[cell][1][i];
@@ -671,6 +682,8 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
     }
 
     // Loop over consumption of focal species
+    // Try making it parallel
+    #pragma omp parallel for private(Sj, Nj, Mj) reduction(+:H)
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         Sj = cellPopSpec[cell][0][i];
         // Check if primary producer as primary producers can't consume other species
@@ -700,7 +713,6 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         int chosenSpec, chosenIndex;
         double H, pOff, G;
         
-        cellMass = getCellMass(cell, cellPopInd); // Get the total mass of all individuals in the cell
         chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
         chosenSpec = cellPopInd[cell][0][chosenIndex];
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
@@ -829,13 +841,15 @@ void removeInd(vector <double> (&cellPopInd)[numCells][3], int cell, int chosenI
 
     int Si = cellPopInd[cell][0][chosenIndex]; // Species of chosen individual
 
+    // Parallelise this for loop
+    #pragma omp parallel for
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         if(Si == cellPopSpec[cell][0][i] && cellPopSpec[cell][1][i] > 1) {
-            // Remove individul form cellpopspec (-1 from population)
+            // Remove individul from cellpopspec (-1 from population)
             cellPopSpec[cell][1][i] -= 1;
             // Subtract weight of individual from total biomass of species
             cellPopSpec[cell][2][i] -= cellPopInd[cell][1][chosenIndex];
-            break;
+            // break;
         } else if (Si == cellPopSpec[cell][0][i] && cellPopSpec[cell][1][i] == 1) {
             cellPopSpec[cell][0].erase(cellPopSpec[cell][0].begin() + i);
             cellPopSpec[cell][1].erase(cellPopSpec[cell][1].begin() + i);
@@ -844,7 +858,6 @@ void removeInd(vector <double> (&cellPopInd)[numCells][3], int cell, int chosenI
     }
 
     for (int j = 0; j < 3; j++) {cellPopInd[cell][j].erase(cellPopInd[cell][j].begin() + chosenIndex);}
-    
 
 }
 
@@ -856,12 +869,16 @@ void addInd(vector <double> (&cellPopInd)[numCells][3], int cell, int chosenSpec
     cellPopInd[cell][2].push_back(traits[chosenSpec][1]);
 
     bool exists = false;
+    // Parallelise below loop
+    // Slower format when cellPopSpec is small (equal at about 1000 species)
+    // But quicker when it's large
+    #pragma omp parallel for
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         if(chosenSpec == cellPopSpec[cell][0][i]) {
             exists = true;
             cellPopSpec[cell][1][i] += 1;
             cellPopSpec[cell][2][i] += traits[chosenSpec][0];
-            break;
+            // break;
         }
     }
 
@@ -887,10 +904,14 @@ void baby(vector <double> (&cellPopInd)[numCells][3], int cell, int chosenIndex,
 void calculateTotalPopSpec(vector <double> (&cellPopInd)[numCells][3], vector <int> (&totalPopSpec)[2]) {
 
     totalPopSpec[0].clear(); totalPopSpec[1].clear();
-
+    
     for (int i = 0; i < numCells; i++) {
         for (int j = 0; j < cellPopSpec[i][0].size(); j++) {
             bool exists = false;
+            // Parallelise inner loop
+            // As outer loop has push back which I don't know how to deal with
+            // when parallelising at the moment
+            #pragma omp parallel for
             for (int k = 0; k < totalPopSpec[0].size(); k++) {
                 if(cellPopSpec[i][0][j] == totalPopSpec[0][k]) {
                     totalPopSpec[1][k] += cellPopSpec[i][1][j];
@@ -909,8 +930,10 @@ void calculateCellPop(vector <double> (&cellPopInd)[numCells][3], vector <int> (
 
     cellPop[0].clear(); cellPop[1].clear();
 
+    int pop = 0;
+
     for (int i = 0; i < numCells; i++) {
-        int pop = cellPopInd[i][0].size();
+        pop = cellPopInd[i][0].size();
         if(pop > 0) {
             cellPop[0].push_back(i);
             cellPop[1].push_back(pop);
@@ -1054,6 +1077,8 @@ double getCellMass(int cell, vector <double> (&cellPopInd)[numCells][3]) {
 
     double cellMass = 0;
 
+    // Parallelize this loop
+    #pragma omp parallel for reduction(+:cellMass)
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         cellMass += cellPopSpec[cell][2][i]; 
     }
@@ -1066,10 +1091,14 @@ double getSpeciesCellMass(int cell, int chosenSpec, vector <double> (&cellPopInd
     
     double speciesCellMass = 0;
 
+    // Parallelize this loop
+    // Slower when cellPopSpec is small
+    // Should be quicker as cellPopSpec gets larger though
+    #pragma omp parallel for reduction(+:speciesCellMass)
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         if(cellPopSpec[cell][0][i] == chosenSpec) {
             speciesCellMass = cellPopSpec[cell][2][i];
-            break;
+            // break;
         }
     }
     
