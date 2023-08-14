@@ -24,16 +24,16 @@ int fragmentation = 0;                      // If 0 creates new community in non
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
-const int cellRows = 5;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
-const int cellCols = 5;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
+const int cellRows = 1;                    //Sets the number of cells in the rows of the landscape (Note: must match landscape file used in code, if using file).
+const int cellCols = 1;                    // Sets the number of cells in the columns of the landscape (Note: must match landscape file used in code).
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 1000000;                         // Number of time steps in the model
-const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
+const int t = 2500000;                         // Number of time steps in the model
+const int initPop = 5000;                    // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.2;               // Probability of individual dying if chosen.
-double probImm = 0.001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
+double probImm = 0.00001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.01;                       // Probability of an individual dispersing from one cell to another cell. 
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 
@@ -75,6 +75,9 @@ int seed;
 int immNum = 0;                                 // Counts number of immigrations that occur
 int dispNum = 0;                                // Counts number of dispersals that occur
 double maxDisp = 0;                             // Stores maximum dispersal distance        
+
+bool generationWarning = false;                 // Used to warn user at the end of the run, if the generation time was set too short
+                                                // aka individuals pOff was close to their maximum pOff
 
 static const double two_pi  = 2.0*3.141592653;
 
@@ -439,7 +442,14 @@ int main(int argc, char *argv[]) {
     s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close();
     s_consumptionRate.close(); s_reproduction.close();
 
-    // end timer FC
+    // Warnings
+    if (generationWarning == true) {
+        cout << "pOff within 5% of maximum, suggesting alpha is set too high" << endl;
+        cout << "Model results are not reliable" << endl;
+    }
+    
+
+    // end timer
     std::cout << "Elapsed(s)=" << since(start).count() << endl; 
     return 0;
 
@@ -674,7 +684,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
     // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
     Ii = Ni*searchRate(Mi, Mi, 0, traits);
     H -= I0*Ii*Mi;
-    } else {
+    } else if (cellPopInd[cell][2][ind] == 1){
         Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
         Ki = K0*pow(Mi, 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
         // Calculate growth rate of our primary producer as intrinsic growth rate*mass*density function including species specific carrying capacity
@@ -722,10 +732,9 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
 
+        // If pOff is within 5% of the maximum pOff (1/G), then warn user at the end
         if(pOff > (1/G) - (0.05*(1/G))) {
-            cout << "pOff within 5% of maximum" << endl;
-            cout << "Mass is " << cellPopInd[cell][1][chosenIndex] << " maximum pOff is " << 1/G << " and pOff is " << pOff << endl;
-            exit(0);
+            generationWarning = true;
         }
 
         if (uniform(eng) <= pOff) {

@@ -7,7 +7,7 @@ library(tidyverse)
 library(ggpmisc) ## stat_poly
 library(lemon) ##facet_rep_wrap
 
-gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/"
+gpath = "/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_5/Results/"
 setwd(gpath)
 
 ## Load datasets
@@ -63,6 +63,20 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 9), aes(log10(M),
     theme(text = element_text(size = 30)) +
     stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9) +
     scale_colour_viridis_d(end = 0.7)
+
+## According to Brown, there is a great degree of variation in the abundaunce of species based on mass
+## and Damuth's law is more likely to hold if you sum abundaunces of species in mass bins
+massBin = totalPopSpec %>% filter(g == max(totalPopSpec$g) & pp == 0 & n > 9) %>%
+    mutate(massBin = round(log10(M), 1)) %>%
+    group_by(massBin) %>%
+    summarise(n = sum(n))
+
+ggplot(massBin, aes(massBin, log10(n))) +
+    geom_point(size = 5) +
+    theme_classic() +
+    geom_smooth(method = "lm", linewidth = 1.5) +
+    theme(text = element_text(size = 30)) +
+    stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9)
 
 checkDamuth = function(x) {
     x = x %>% filter(pp == 0 & n > 9)
@@ -127,7 +141,8 @@ ggplot(mutate(rasterDat, mass = ifelse(n > 0, M, 0)), aes(g, as.factor(s), fill 
 
 reproduction = read_delim(paste0(gpath, "reproduction.txt"), col_names = FALSE) %>% 
     rename(g = 1, c = 2, s = 3, m = 4, H = 5, pOffMax = 6, pOff = 7, pDeath = 8) %>%
-    mutate(HM = H/m, .after = H)
+    mutate(HM = H/m, .after = H) %>%
+    left_join(traits)
 
 ## Distribution of H across all time steps for all species
 ggplot(reproduction, aes(HM)) + 

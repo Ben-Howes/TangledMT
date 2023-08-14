@@ -161,3 +161,7 @@ reproduction %>% group_by(r0, K0, I0) %>%
 ggplot(reproduction, aes(as.factor(IO), HM)) +
     facet_rep_grid(as.factor(r0) ~ as.factor(K0)) +
     geom_boxplot()
+
+reproduction %>% filter(r0 == 10 & K0 == 10 & I0 == 0.1) %>%
+    group_by(seed) %>% 
+    summarise(maxHM = max(HM, na.rm = T))
