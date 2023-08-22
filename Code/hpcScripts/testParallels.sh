@@ -1,14 +1,14 @@
 #!/bin/bash
-#PBS -l walltime=24:00:00
-#PBS -l select=1:ncpus=64:mem=1gb
-#PBS -J 1-24
+#PBS -l walltime=48:00:00
+#PBS -l select=1:ncpus=8:mem=1gb:ompthreads=8
+#PBS -J 1-5
 
 ## Just a test to see if the parallel code works on HPC
-## randomly chose to do 24 runs
+## randomly chose to do 5 runs
 
 ## So I need 
 seeds=()
-for s in $(seq 100 100 2400)
+for s in $(seq 100 100 500)
 do
     seeds+=("$s")
 done
@@ -17,7 +17,7 @@ done
 
 r0=(10)
 K0=(10)
-I0=(0.1)
+I0=(0.5)
 
 args=()
 s=0
@@ -28,10 +28,9 @@ do
     do
         for int in "${I0[@]}"
         do
-            for i in $(seq 1 24)
+            for s in "${seeds[@]}"
             do
-                args+=("${seeds[s]}" "$r" "$k" "$int")
-                s=$((s+1))
+                args+=("$s" "$r" "$k" "$int")
             done
         done
     done
