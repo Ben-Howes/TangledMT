@@ -20,8 +20,7 @@ using namespace std;
 // These variables can be easily changed to alter the output of the model
 
 string dir = "../Results/TNM_Output/";   // Directory for output of model
-int fragmentation = 0;                      // If 0 creates new community in non-fragmented landscape, if 1 loads in community and loads in your own landscape from command line argument 4.
-                                            // but this can be changed in the command line argument, as argument 3.
+int habitatLoss = 1;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
@@ -30,13 +29,15 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 5000000;                         // Number of time steps in the model
-const int initPop = 50;                    // Number of individuals to put into each cell at the start of the model.
+const int t = 10000000;                         // Number of time steps in the model
+int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
+const int initPop = 500;                    // Number of individuals to put into each cell at the start of the model.
 
-const float probDeath = 0.2;               // Probability of individual dying if chosen.
+const float probDeath = 0.5;               // Probability of individual dying if chosen.
 double probImm = 0.00001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. 
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
+double propLoss = 0.5;                  // Proportion of cells that are lost if habitatLoss == 1 (0 - 1)
 
 // Metabolic theory variables
 double ppProp = 0.2;                       // Sets proportion of species that are primary producers
@@ -105,11 +106,12 @@ int randomIndex(vector <double> (&cellPopInd)[numCells][3], int pop, int numSpec
 void cellCoords(int (&landscapeCoords)[numCells][2], int cols, int rows, int numCells);
 void getDistances(double (&distArray)[numCells][numCells], int landscapeCoords[][2], int cellRows, int cellCols);
 void dispersal(vector <double> (&cellPopInd)[numCells][3], double (&distArray)[numCells][numCells], double prob, int cell, int numSpec, int &dispNum, mt19937& eng); 
-vector<int> findValidCells(double (&distArray)[numCells][numCells], double distance, int cell);
+vector <int> findValidCells(double (&distArray)[numCells][numCells], int (&cellList)[numCells][2], double distance, int cell);
 void fillCellList(int landscapeArray[][cellRows], int cellList[][2], int cellCols, int cellRows);
 void getForestCellList(int cellList[][2], vector <int> &forestCellList);
 void removeInd(vector <double> (&cellPopInd)[numCells][3], int cell, int chosenIndex, vector <double> (&cellPopSpec)[numCells][3]);
 void addInd(vector <double> (&cellPopInd)[numCells][3], int cell, int chosenSpec, double (&traits)[numSpec][2], vector <double> (&cellPopSpec)[numCells][3]);
+void loseHabitat(int (&landscapeArray)[cellCols][cellRows], int (&cellList)[numCells][2], int cellRows, int cellCols, int numCells, mt19937& eng, double propLoss);
 
 void store2ColFiles(ofstream &stream, int firstCol, int secondCol);
 void storeVec(ofstream &stream, vector <int> vec[], int gen, int cols);
@@ -216,18 +218,10 @@ auto since(std::chrono::time_point<clock_t, duration_t> const& start)
 
 int main(int argc, char *argv[]) {
     auto start = std::chrono::steady_clock::now(); // start timer FC
-
-    string fraginpath, fragName;
-    int newSeed;
        
     /////////////
     // Check command Line
     /////////////
-
-    // We only want to run under two conditions
-    // 1) With just the seed defined, which means we are making a new community
-    // 2) With the old community seed defined, a new seed, fragmentation (set to 1), and a landscape file to fragment to
-    // Under all other circumstances we want to exit the program (other than no arguments, when we just make a new community with seed 1 as an example)
     
     if(argc == 2) {seed = atof(argv[1]);} else {seed = defSeed;}
     
@@ -238,9 +232,19 @@ int main(int argc, char *argv[]) {
         I0 = atof(argv[4]);
     }
 
-    if(argc != 2 && argc != 5) {
+    if(argc == 7) {
+        seed = atof(argv[1]);
+        r0 = atof(argv[2]);
+        K0 = atof(argv[3]);
+        I0 = atof(argv[4]);
+        habitatLoss = atof(argv[5]);
+        propLoss = atof(argv[6]);
+    }
+
+    if(argc != 2 && argc != 5 && argc != 7) {
         std::cout << "Incorrect number of arguments entered" << endl;
-        std::cout << "Either input a seed, or arguments for primary producer gain multipler, carrying capacity, and competition" << endl;
+        std::cout << "Either input a seed, or a seed and arguments for primary producer gain multiplier, carrying capacity, and competition" << endl;
+        std::cout << "Or input a seed, arguments for primary producer gain multiplier, carrying capacity, competition, habitat loss (0 or 1), and proportion of cells lost" << endl;
         exit(0);
     }
 
@@ -249,127 +253,68 @@ int main(int argc, char *argv[]) {
     string respath = outpath + "/Results";                  // Folder for output of results.
     string landpath = outpath + "/Landscape";                // Folder for output of landscape files.
     string finpath = outpath + "/Final_Output";              // Folder for final generation outputs for use in future models.
-    string fragpath = outpath + "/Fragmentation";               // Folder to hold future fragmentation outcomes
-    string finfragpath = outpath + "/Final_Frag_Output";              // Folder for final generation outputs for use in future models.
 
     // Make new directory at output location named after the seed
 
     DIR* checkDir = opendir(outpath.c_str());
-    if (checkDir && fragmentation == 0) {
+    if (checkDir) {
         closedir(checkDir);
         std::cout << "Directory for seed " << seed << " already exists, exiting....." << endl;
         exit(0);
-    } else if(checkDir && fragmentation == 1) {
-        closedir(checkDir);
-        std::cout << "Community exists, fragmenting...." << endl;
-    } else if (!checkDir && fragmentation == 0){
+    } else if (!checkDir){
         mkdir(outpath.c_str(),07777);
         std::cout << "Directory does not exist, creating... at " << outpath << endl;
-    } else if(!checkDir && fragmentation == 1) {
-        std::cout << "Directory doesnt exist, so no community to load....exiting" << endl;
-        exit(0);
     }
 
     // Add more directories. 
     // One to store the final outputs for use in future models, another for landscape files, and another for the full results.
-    if(fragmentation == 0) {
-        mkdir(respath.c_str(), 07777);
-        mkdir(finpath.c_str(), 07777);
-        mkdir(landpath.c_str(), 07777);
-    }
-    // If fragmentation is occuring make a main fragmentation folder if it doesn't already exist
-    if(fragmentation == 1) mkdir(fragpath.c_str(), 07777);
-    // Then make a folder within that for the specific seed used for this fragmentation
-    string fragseedpath = fragpath + "/Seed_" + to_string(newSeed);
-    if(fragmentation == 1) mkdir(fragseedpath.c_str(), 07777);
-    // Then add a folder within the fragmentaiton folder for this specific landscape structure, which will be named after the landscape
-    string fragoutpath = fragseedpath + "/" + fragName;
-    if(fragmentation == 1) mkdir(fragoutpath.c_str(), 07777);
+    mkdir(respath.c_str(), 07777);
+    mkdir(finpath.c_str(), 07777);
+    mkdir(landpath.c_str(), 07777);
 
     // Fill cellList with number of each cell (0,1,2,3 etc)
     // second column in cellList currently blank as it could change depending on the landscape (1 = forest, 0 = non-forest)
     for (int i = 0; i < numCells; i++) {cellList[i][0] = i; cellOrder[i] = i;}
 
-    if(fragmentation == 1) {seed = newSeed;}
-
     mt19937 eng(seed); // Seed random numbers
 
-    // Check if we are loading a previous community to undergo fragmentation
-    // or if we need to create a new community
-    if(fragmentation == 1) {
+    // Create and store species traits
+    // createJMatrix(J, probInt, eng);
+    // store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
+    createTraits(traits, eng, ppProp);
+    store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
 
-        read2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        read2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
+    // Calculate G0 based on minimum mass of species in the pool
+    double minMi = traits[0][0];
+    for (int i = 0; i < numSpec; i++){if(traits[i][0] < minMi){minMi = traits[i][0];}}
+    G0 = 1/pow(minMi, 0.25);
 
-        // Read in predefined landscape with 1s for forest cells and 0 for non-forest cells
-        read2DArray<int, cellRows>(landscapeArray, cellCols, cellRows, fragName, fraginpath);
-        fillCellList(landscapeArray, cellList, cellCols, cellRows);
-        store2DArray<int, 2>(cellList, 2, numCells, "/cellList.txt", fragoutpath);
-        store2DArray<int, cellRows>(landscapeArray, cellCols, cellRows, "/landscape.txt", fragoutpath);
+    // Calculate D0 based on minimum mass of species in the pool
+    // Calculate the value of D0 needed to make the smallest species have a 10% chance
+    // of dispersing at least 1 cell distance
+    D0 = 0.01/(pow(exp(1), (-1/1.5))*pow(minMi, 0.63));
 
-        // Get list of cells which are forest cells
-        getForestCellList(cellList, forestCellList);
+    // Store parameters used in model
+    storeParam("/Parameters.txt", outpath);
 
-        // Get coordinate for each cell in the landscape for distance calculation
-        cellCoords(landscapeCoords, cellCols, cellRows, numCells);
-        // Calculate distances between all cells
-        getDistances(distArray, landscapeCoords, cellRows, cellCols);
+    // Make default landscape based on rows, columns and numCells provided (aka all cells forest)
+    for (int i = 0; i < cellRows; i++) {fill_n(landscapeArray[i], cellCols, 1);}
+    for (int i = 0; i < numCells; i++) {cellList[i][1] = 1;}
+    store2DArray<int, cellRows>(landscapeArray, cellCols, cellRows, "/landscape.txt", landpath);
+    store2DArray<int, 2>(cellList, 2, numCells, "/cellList.txt", landpath);
 
-        store2DArray<double, numCells>(distArray, numCells, numCells, "/distArray_frag.txt", fragpath);
-        // read2DArray<int, numSpec>(cellPopInd, numSpec, numCells, "/final_cellPopInd.txt", finpath);
-        
-       
-    } else {
+    // Get list of cells which are forest cells
+    getForestCellList(cellList, forestCellList);
 
-        // Create and store species traits
-        // createJMatrix(J, probInt, eng);
-        // store2DArray<double, numSpec>(J, numSpec, numSpec, "/JMatrix.txt", outpath);
-        createTraits(traits, eng, ppProp);
-        store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
+    // Get coordinates for each cell for use in calculating distance
+    cellCoords(landscapeCoords, cellCols, cellRows, numCells);
 
-        // Calculate G0 based on minimum mass of species in the pool
-        double minMi = traits[0][0];
-        for (int i = 0; i < numSpec; i++){if(traits[i][0] < minMi){minMi = traits[i][0];}}
-        G0 = 1/pow(minMi, 0.25);
+    // Calculate distances between all cells
+    getDistances(distArray, landscapeCoords, cellRows, cellCols);
+    store2DArray<double, numCells>(distArray, numCells, numCells, "/distArray.txt", landpath);
 
-        // Calculate D0 based on minimum mass of species in the pool
-        // Calculate the value of D0 needed to make the smallest species have a 10% chance
-        // of dispersing at least 1 cell distance
-        D0 = 0.01/(pow(exp(1), (-1/1.5))*pow(minMi, 0.63));
-
-        // Store parameters used in model
-        storeParam("/Parameters.txt", outpath);
-
-        // Make default landscape based on rows, columns and numCells provided (aka all cells forest)
-        for (int i = 0; i < cellRows; i++) {fill_n(landscapeArray[i], cellCols, 1);}
-        for (int i = 0; i < numCells; i++) {cellList[i][1] = 1;}
-        store2DArray<int, cellRows>(landscapeArray, cellCols, cellRows, "/landscape.txt", landpath);
-        store2DArray<int, 2>(cellList, 2, numCells, "/cellList.txt", landpath);
-
-        // Get list of cells which are forest cells
-        getForestCellList(cellList, forestCellList);
-
-        // Get coordinates for each cell for use in calculating distance
-        cellCoords(landscapeCoords, cellCols, cellRows, numCells);
-
-        // Calculate distances between all cells
-        getDistances(distArray, landscapeCoords, cellRows, cellCols);
-        store2DArray<double, numCells>(distArray, numCells, numCells, "/distArray.txt", landpath);
-
-        // Initialise population
-        initialisePop(cellPopInd, traits, numSpec, numCells, eng);
-    }
-
-    // Open files to output to
-    if (fragmentation == 1) {
-        respath = fragoutpath + "/Results";
-        finfragpath = fragoutpath + "/Final_Frag_Output";              // Folder for final generation outputs for use in future models.
-        storeParam("/FragParameters.txt", fragoutpath);
-
-        mkdir(respath.c_str(), 07777);     
-        mkdir(finfragpath.c_str(), 07777);
-
-    }
+    // Initialise population
+    initialisePop(cellPopInd, traits, numSpec, numCells, eng);
 
     ofstream s_totalPop;
     s_totalPop.open(respath + "/totalPop.txt");
@@ -391,14 +336,28 @@ int main(int argc, char *argv[]) {
     // Start model dynamics //
     ///////////////////////////////////////////////////////////////////////////////////////
     for (int i = 0; i < t; i++) {
+        
+        // Check if this is the timestep when habitat loss occurs
+        if (habitatLoss == 1 && i == lossT) {
+            loseHabitat(landscapeArray, cellList, cellRows, cellCols, numCells, eng, propLoss);
+            // Save the new cellList with cells showing as (0 = no habitat, 1 = habitat)
+            store2DArray<int, 2>(cellList, 2, numCells, "/lossCellList.txt", landpath);
+            // Save teh new landscape array so it's easy to visualise the loss to the landscape
+            store2DArray<int, cellRows>(landscapeArray, cellCols, cellRows, "/lossLandscape.txt", landpath);
+        }
+        
+
         shuffle(cellOrder, numCells, eng);
         //Loop through each cell of the landscape
         for (int j = 0; j < numCells; j++) {
             int cell = cellOrder[j];
-            kill(cellPopInd, probDeath, cell, numSpec, eng);
-            reproduction(cellPopInd, cellList, traits, cell, numSpec, i, eng);
-            dispersal(cellPopInd, distArray, probDisp, cell, numSpec, dispNum, eng); // Now set to a constant probability
-            immigration(cellPopInd, probImm, cell, numSpec, immNum, eng);
+            // Only run the model dynamics if the cell has habitat (cellList[cell][1] == 1)
+            if(cellList[cell][1] == 1) {
+                kill(cellPopInd, probDeath, cell, numSpec, eng);
+                reproduction(cellPopInd, cellList, traits, cell, numSpec, i, eng);
+                dispersal(cellPopInd, distArray, probDisp, cell, numSpec, dispNum, eng); // Now set to a constant probability
+                immigration(cellPopInd, probImm, cell, numSpec, immNum, eng);
+            }
         }
 
         // Calculate richness and abundance metrics
@@ -433,19 +392,10 @@ int main(int argc, char *argv[]) {
         }
     }
     // // Store final outputs of burn ins
-    if(fragmentation == 0) {
-        storeNum(immNum, "/total_Immigrations.txt", finpath);
-        storeNum(dispNum, "/total_Dispersals.txt", finpath);
-        storeNum(maxDisp, "/maximum_Dispersal.txt", finpath);
-        // storeVecEnd(cellPopInd, 3, "/final_cellPopInd.txt", finpath);
-    }
-    // Store final outputs for fragment runs
-    if(fragmentation == 1) {
-    //   save cellPopInd
-        storeNum(immNum, "/total_Immigrations.txt", finfragpath);
-        storeNum(dispNum, "/total_Dispersals.txt", finfragpath);
-        //  storeVecEnd(cellPopInd, 3, "/final_cellPopInd.txt", finfragpath);
-    }
+    storeNum(immNum, "/total_Immigrations.txt", finpath);
+    storeNum(dispNum, "/total_Dispersals.txt", finpath);
+    storeNum(maxDisp, "/maximum_Dispersal.txt", finpath);
+
     // Close all streams to files
     s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close();
     s_consumptionRate.close(); s_reproduction.close();
@@ -514,6 +464,11 @@ void storeParam(string fileName, string outpath) {
     file << "Generation_Constant" << " G0 " << G0 << "\n";
     file << "Dispersal Constant" << " D0 " << D0 << "\n";
     file << "pOff_Slope" << " alpha " << alpha << "\n";
+    file << "Temperature" << " T " << T << "\n";
+    file << "habitatLoss" << " loss " << habitatLoss << "\n";
+    if(habitatLoss == 1) {
+        file << "Habitat_Loss_Time" << " lossT " << lossT << "\n";
+    }
 
     file.close();
 
@@ -556,13 +511,14 @@ void storeVecEnd(vector <int> vec[], int cols, string fileName, string outpath) 
     out.close();
 }
 
-vector <int> findValidCells(double (&distArray)[numCells][numCells], double distance, int cell) {
+vector <int> findValidCells(double (&distArray)[numCells][numCells], int (&cellList)[numCells][2], double distance, int cell) {
 
     vector<int>validCells;
 
     // Go through row of distArray for the cell and identify all cells within distance
     for (int i = 0; i < numCells; i++) {
-        if(distArray[cell][i] <= distance) {
+        // Check if cell is within distance and has habitat (cellList[i][1] == 1)
+        if(distArray[cell][i] <= distance && cellList[i][1] == 1) {
             validCells.push_back(i);
         }
     }
@@ -596,7 +552,7 @@ double prob, int cell, int numSpec, int &dispNum, mt19937& eng) {
             
 
             if(disp >= 1) {  // If disp less than 1 then the individual can't disperse
-                validCells = findValidCells(distArray, disp, cell);
+                validCells = findValidCells(distArray, cellList, disp, cell);
                 int arr[validCells.size()]; 
                 copy(validCells.begin(), validCells.end(), arr); // Copy into array for use in shuffle function
                 shuffle(arr, validCells.size(), eng);                 // Shuffle valid cells into random order
@@ -738,7 +694,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(0);
         H = H/cellPopInd[cell][1][chosenIndex];
-        pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
+        pOff = (1/G)*(1/(1 + exp(-alpha*(H))));
 
         // If pOff is within 5% of the maximum pOff (1/G), then warn user at the end
         if(pOff > (1/G) - (0.05*(1/G))) {
@@ -1035,6 +991,48 @@ int mutation(vector <double> (&cellPopInd)[numCells][3], double prob, int chosen
 
 }
 
+void loseHabitat(int (&landscapeArray)[cellCols][cellRows], int (&cellList)[numCells][2], int cellRows, int cellCols, int numCells, mt19937& eng, double propLoss) {
+
+    int numCellsLoss = numCells*propLoss; // Number of cells to be lost
+
+    int lost = 0; // Counts number of cells lost
+
+    // Update cellList to indicate which cells have lost habitat
+    while(lost < numCellsLoss) {
+        int cell = chooseInRange(0, numCells-1, eng); // Choose a random cell to start the loss from
+        // Change second column of cellList from 1 to 0 to indicate they no longer have habitat
+        if(cellList[cell][1] == 1) {
+            cellList[cell][1] = 0;
+            lost++; // Only add one to lost if the cell was covered in habitat before
+        }
+    }
+
+    // Update landscapeArray to indicate which cells have lost habitat
+    for (int i = 0; i < numCells; i++) {
+        if(cellList[i][1] == 0) {
+            int col = cellList[i][0] / cellCols;
+            int row = cellList[i][0] % cellRows;
+            landscapeArray[col][row] = 0;
+        }
+    }
+    
+    
+
+    // Then remove all individuals from cells that are no longer covered in habitat
+    for (int i = 0; i < numCells; i++) {
+        if(cellList[i][1] == 0) {
+            for (int j = 0; j < 3; j++) {
+                cellPopInd[i][j].clear();
+                cellPopSpec[i][j].clear();
+            }
+            
+        }
+    }
+    
+
+
+}
+
 ///////////////////////
 // Metabolic Theory Functions
 ///////////////////////
@@ -1177,7 +1175,7 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         G = G0*pow(traits[chosenSpec][0], 0.25);
         H = H/traits[chosenSpec][0];
-        pOff = (1/G)*(1/(1 + exp(-alpha*(H - 0.5))));
+        pOff = (1/G)*(1/(1 + exp(-alpha*(H))));
 
         stream << gen + 1 << " " << i+1 << " " << chosenSpec+1 << " " << traits[chosenSpec][0] << " " << H << " " << 1/G << " " << 
         pOff << " " << probDeath/(G0*pow(traits[chosenSpec][0], 0.25)) << "\n";
