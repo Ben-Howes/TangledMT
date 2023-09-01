@@ -29,11 +29,11 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 10000000;                         // Number of time steps in the model
+const int t = 50000000;                         // Number of time steps in the model
 int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
-const int initPop = 500;                    // Number of individuals to put into each cell at the start of the model.
+const int initPop = numSpec;                // Number of individuals to put into each cell at the start of the model.
 
-const float probDeath = 0.5;               // Probability of individual dying if chosen.
+const float probDeath = 0.2;               // Probability of individual dying if chosen.
 double probImm = 0.00001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. 
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
@@ -48,7 +48,8 @@ double K0 = 10;                             // Weighting of carrying capacity of
 double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
 double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
 double D0;                               // Store normalising constant for dispersal distance, which will be based on the mass of the smallest spcies in the pool
-double alpha = 0.01;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
+double alpha = 0.25;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
+double H0 = log((1/(1*pow(10, -10)))-1)/alpha;      // Offset value so pR = a negligible value (1x10^-10) when H = 0
 
 ///////////////////////
 // Define Variables //
@@ -78,8 +79,7 @@ int immNum = 0;                                 // Counts number of immigrations
 int dispNum = 0;                                // Counts number of dispersals that occur
 double maxDisp = 0;                             // Stores maximum dispersal distance        
 
-bool generationWarning = false;                 // Used to warn user at the end of the run, if the generation time was set too short
-                                                // aka individuals pOff was close to their maximum pOff
+double pMax = 0;                                   // Count the number of times the pOff of a species is within 1% of its maximum
 
 static const double two_pi  = 2.0*3.141592653;
 
@@ -401,9 +401,9 @@ int main(int argc, char *argv[]) {
     s_consumptionRate.close(); s_reproduction.close();
 
     // Warnings
-    if (generationWarning == true) {
-        cout << "pOff within 5% of maximum, suggesting alpha is set too high" << endl;
-        cout << "Model results are not reliable" << endl;
+    if(pMax > 0) {
+        std::cout << "WARNING: pOff of an individual was within 1 percent of its maximum " << pMax << " (" << (pMax/(t*numCells))*100 << 
+        "%) times from a total attempts of " << t*numCells << endl;
     }
     
 
@@ -645,14 +645,14 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
                 H += CE*Nj*consumptionRate(Mi, Mj, 0, traits, Nj);
             }
         }
-    // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
-    Ii = Ni*searchRate(Mi, Mi, 0, traits);
-    H -= I0*Ii*Mi;
+        // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
+        Ii = Ni*searchRate(Mi, Mi, 0, traits);
+        H -= I0*Ii*Mi;       
     } else if (cellPopInd[cell][2][ind] == 1){
         Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
         Ki = K0*pow(Mi, 0.25); // pow(individualsMass, -0.75) * individualsMass, same as individualsMass^0.25
-        // Calculate growth rate of our primary producer as intrinsic growth rate*mass*density function including species specific carrying capacity
-        H += r0*pow(Mi, -0.25)*Mi*(1-(Xi/Ki));
+        // Calculate energy intake of ourprimary producer as base energy rate (r0)*mass*density function including species specific carrying capacity
+        H += r0*Mi*(1-(Xi/Ki));
     }
 
     // Loop over consumption of focal species
@@ -694,11 +694,11 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(0);
         H = H/cellPopInd[cell][1][chosenIndex];
-        pOff = (1/G)*(1/(1 + exp(-alpha*(H))));
+        pOff = (1/G)*(1/(1 + exp(-alpha*(H - H0))));
 
         // If pOff is within 5% of the maximum pOff (1/G), then warn user at the end
-        if(pOff > (1/G) - (0.05*(1/G))) {
-            generationWarning = true;
+        if(pOff > (1/G) - (0.01*(1/G))) {
+            pMax += 1;
         }
 
         if (uniform(eng) <= pOff) {
@@ -805,7 +805,7 @@ double gaussian(mt19937& eng) {
 void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProp) {
     std::lognormal_distribution<double> distribution(0, 2.0);
     for (int i = 0; i < numSpec; i++) {
-        traits[i][0] = distribution(eng);
+        traits[i][0] = pow(10, distribution(eng));
         if(uniform(eng) < ppProp) {traits[i][1] = 1;} else {traits[i][1] = 0;};
     }
 }
@@ -1175,7 +1175,7 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
         G = G0*pow(traits[chosenSpec][0], 0.25);
         H = H/traits[chosenSpec][0];
-        pOff = (1/G)*(1/(1 + exp(-alpha*(H))));
+        pOff = (1/G)*(1/(1 + exp(-alpha*(H - H0))));
 
         stream << gen + 1 << " " << i+1 << " " << chosenSpec+1 << " " << traits[chosenSpec][0] << " " << H << " " << 1/G << " " << 
         pOff << " " << probDeath/(G0*pow(traits[chosenSpec][0], 0.25)) << "\n";

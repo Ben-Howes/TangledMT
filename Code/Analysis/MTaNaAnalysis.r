@@ -104,7 +104,7 @@ ggplot(damuth, aes(g, dam)) +
 # ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/damuthTime_", x, ".pdf"), width = 15, height = 10)
 
 ## Plot abundance of species over time, including their mass
-ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
+ggplot(filter(totalPopSpec, pp == 0), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
     geom_line(linewidth = 2) +
     theme_classic() +
     labs(x = "Time", y = "Log10(Abundaunce)", col = "Log10(Body \nMass)", 
@@ -118,60 +118,63 @@ ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interactio
 ## Reproduction Data
 ################################
 
-# reproduction = read_delim(paste0(gpath, "reproduction.txt"), col_names = FALSE) %>% 
-#     rename(g = 1, c = 2, s = 3, m = 4, H = 5, pOffMax = 6, pOff = 7, pDeath = 8) %>%
-#     mutate(HM = H/m, .after = H) %>%
-#     left_join(traits)
+reproduction = read_delim(paste0(gpath, "reproduction.txt"), col_names = FALSE) %>% 
+    rename(g = 1, c = 2, s = 3, m = 4, H = 5, pOffMax = 6, pOff = 7, pDeath = 8) %>%
+    mutate(HM = H/m, .after = H) %>%
+    left_join(traits)
 
-# ## Distribution of H across all time steps for all species
-# ggplot(reproduction, aes(HM)) + 
-#     geom_density(linewidth = 2) +
-#     theme_classic() +
-#     labs(x = "H'", y = "Density") +
-#     theme(text = element_text(size = 30))
+## Distribution of H across all time steps for all species
+ggplot(reproduction, aes(HM)) + 
+    geom_density(linewidth = 2) +
+    theme_classic() +
+    labs(x = "H'", y = "Density") +
+    theme(text = element_text(size = 30))
 
-# ## Proportion of maxPoff achieved per time step for each species
-# ggplot(reproduction, aes(g, pOff/pOffMax, col = log10(m), group = log10(m))) +
-#     geom_line(linewidth = 1) +
-#     theme_classic() +
-#     labs(x = "Time", y = "Max Probablity of Reproduction %") +
-#     theme(text = element_text(size = 30)) +
-#     scale_colour_viridis_c()
+## Proportion of maxPoff achieved per time step for each species
+ggplot(reproduction, aes(g, pOff/pOffMax, col = log10(m), group = log10(m))) +
+    geom_line(linewidth = 1) +
+    theme_classic() +
+    labs(x = "Time", y = "Max Probablity of Reproduction %") +
+    theme(text = element_text(size = 30)) +
+    scale_colour_viridis_c()
 
-# ## pOff - Pdeath for each species in each timestep
-# ggplot(reproduction, aes(g, pOff - pDeath, col = log10(m), group = log10(m))) +
-#     geom_line(linewidth = 1) +
-#     theme_classic() +
-#     labs(x = "Time", y = "(Probability of Reproduction) - (Probability of Death)") +
-#     theme(text = element_text(size = 30)) +
-#     scale_colour_viridis_c() +
-#     geom_hline(yintercept = 0, linetype = "dashed", linewidth = 2)
+## Proportion of species within 1% of their maximum probability of reproduction per time step
+propMax = reproduction %>% 
+    mutate(prop = pOff/pOffMax) %>%
+    group_by(g) %>%
+    summarise(prop = sum(prop > 0.99)/n())
 
-# ## Probability of reproduction for each species in each time step 
-# ## with line for maxPoff and pDeath
-# ggplot(reproduction, aes(log10(m), pOff)) + 
-#     geom_point(size = 2.5, shape = 1) + 
-#     geom_line(aes(log10(m), pOffMax), linewidth = 2, col = "blue") +
-#     geom_line(aes(log10(m), pDeath), linewidth = 2, col = "red") +
-#     theme_classic() +
-#     labs(x = "Log10(Body Mass)", y = "Probability of Reproduction",
-#     title = "Probability of Reproduction\nBlue Line is Maximum Probability of Reproduction\nRed Line is Probability of Death") +
-#     theme(text = element_text(size = 30))
+ggplot(propMax, aes(g, prop)) +
+    geom_line(linewidth = 1.5) +
+    labs(x = "Time Step", y = "Proportion of species within 1% of max pOff") +
+    theme_classic() +
+    theme(text = element_text(size = 30))
 
-# ## Maximum average number of offspring produced by an individual will be pR/pZ, wheree pR is it it's max value of 1/G
-# reproduction = reproduction %>% mutate(avgOffspring = pOff/pDeath, maxOffspring = pOffMax/pDeath)
+## pOff - Pdeath for each species in each timestep
+ggplot(reproduction, aes(g, pOff - pDeath, col = log10(m), group = log10(m))) +
+    geom_line(linewidth = 1) +
+    theme_classic() +
+    labs(x = "Time", y = "(Probability of Reproduction) - (Probability of Death)") +
+    theme(text = element_text(size = 30)) +
+    scale_colour_viridis_c() +
+    geom_hline(yintercept = 0, linetype = "dashed", linewidth = 2)
 
-# ggplot(reproduction, aes(log10(m), maxOffspring)) +
-#     geom_point(size = 2.5, shape = 1) + 
-#     theme_classic() +
-#     labs(x = "Log10(Body Mass)", y = "Maximum Number of Offspring in a lifetime") +
-#     theme(text = element_text(size = 30))
+## Probability of reproduction for each species in each time step 
+## with line for maxPoff and pDeath
+ggplot(reproduction, aes(log10(m), pOff)) + 
+    geom_point(size = 2.5, shape = 1) + 
+    geom_line(aes(log10(m), pOffMax), linewidth = 2, col = "blue") +
+    geom_line(aes(log10(m), pDeath), linewidth = 2, col = "red") +
+    theme_classic() +
+    labs(x = "Log10(Body Mass)", y = "Probability of Reproduction",
+    title = "Probability of Reproduction\nBlue Line is Maximum Probability of Reproduction\nRed Line is Probability of Death") +
+    theme(text = element_text(size = 30))
 
-# ggplot(reproduction, aes(log10(m), avgOffspring)) +
-#     geom_point(size = 2.5, shape = 1) + 
-#     theme_classic() +
-#     labs(x = "Log10(Body Mass)", y = "Average Number of Offspring in a lifetime") +
-#     theme(text = element_text(size = 30))
+ggplot(reproduction, aes(log10(m), avgOffspring)) +
+    geom_point(size = 2.5, shape = 1) + 
+    theme_classic() +
+    labs(x = "Log10(Body Mass)", y = "Average Number of Offspring in a lifetime") +
+    theme(text = element_text(size = 30))
 
 ################################
 ## Consumption Rate
@@ -202,7 +205,7 @@ source(paste0(gpath, "../../../../Code/Analysis/Rscripts/networkPlotScripts.r"))
 ## Filter dataset to a specific time step, and summarise
 ## over cells to get a total consumption rate of each Si on each Sj
 test = consumption %>% 
-    filter(g == 50000000) %>%
+    filter(g == max(consumption$g)) %>%
     group_by(Si, Ni, Mi, Sj, Mj, Nj) %>%
     summarise(Ni = sum(Ni), Nj = sum(Nj), eNjJij = sum(eNjJij)) %>%
     ungroup()
@@ -219,7 +222,7 @@ cDF = test %>%
 
 ## Make another data frame with species names, mass and abundances
 mDF = totalPopSpec %>% 
-    filter(g == 50000000) %>%
+    filter(g == max(consumption$g)) %>%
     dplyr::select(s, M, n, pp) %>%
     rename(m = 2) %>%
     mutate(logM = log10(m)) %>%
@@ -239,11 +242,9 @@ sizeN = (V(testG)$n/maxN)*scaleN + minN
 ## Change colour based on log10(mass)
 col = arrange(mDF, logM)
 
-pdf(file = paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/foodWeb_", x, ".pdf"), width = 16, height = 16) 
 plotfw(testG, edge.arrow.size = 0.3, size = sizeN, vertex.color = V(testG)$massPalette,
     edge.color = E(testG)$gainPalette, edge.width = 4)
 image.plot(legend.only=T, zlim=range(mDF$logM), col = col$massPalette)
-dev.off()
 
 ###############
 ## HEATMAP

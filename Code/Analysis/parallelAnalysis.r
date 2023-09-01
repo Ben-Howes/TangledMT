@@ -13,7 +13,7 @@ seeds = seq(100, 500, 100)
 
 for (x in seeds) {
 
-    gpath = paste0("/home/ben/Documents/TangledMT/Results/testParallel/Seed_", x, "/Results/")
+    gpath = paste0("/home/ben/Documents/TangledMT/Results/parallelResults/Seed_", x, "/Results/")
     setwd(gpath)
 
     dir.create(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x), showWarnings = FALSE)
