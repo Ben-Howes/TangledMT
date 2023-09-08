@@ -20,7 +20,7 @@ using namespace std;
 // These variables can be easily changed to alter the output of the model
 
 string dir = "../Results/TNM_Output/";   // Directory for output of model
-int habitatLoss = 1;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
+int habitatLoss = 0;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
@@ -29,7 +29,7 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 50000000;                         // Number of time steps in the model
+const int t = 25000000;                         // Number of time steps in the model
 int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
 const int initPop = numSpec;                // Number of individuals to put into each cell at the start of the model.
 
@@ -48,7 +48,7 @@ double K0 = 10;                             // Weighting of carrying capacity of
 double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
 double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
 double D0;                               // Store normalising constant for dispersal distance, which will be based on the mass of the smallest spcies in the pool
-double alpha = 0.25;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
+double alpha = 1;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
 double H0 = log((1/(1*pow(10, -10)))-1)/alpha;      // Offset value so pR = a negligible value (1x10^-10) when H = 0
 
 ///////////////////////
@@ -395,6 +395,7 @@ int main(int argc, char *argv[]) {
     storeNum(immNum, "/total_Immigrations.txt", finpath);
     storeNum(dispNum, "/total_Dispersals.txt", finpath);
     storeNum(maxDisp, "/maximum_Dispersal.txt", finpath);
+    storeNum(pMax, "/pMax.txt", finpath);
 
     // Close all streams to files
     s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close();
@@ -464,6 +465,7 @@ void storeParam(string fileName, string outpath) {
     file << "Generation_Constant" << " G0 " << G0 << "\n";
     file << "Dispersal Constant" << " D0 " << D0 << "\n";
     file << "pOff_Slope" << " alpha " << alpha << "\n";
+    file << "pOff_Offset" << " H0 " << H0 << "\n";
     file << "Temperature" << " T " << T << "\n";
     file << "habitatLoss" << " loss " << habitatLoss << "\n";
     if(habitatLoss == 1) {
@@ -609,7 +611,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
     vector <double> (&cellPopSpec)[numCells][3], int gen) {
 
     double H = 0; // Store energy state after interactions
-    double CE = 0.5; // Conversation efficiency
+    double CE = 0.5; // Conversion efficiency
     int Si = cellPopInd[cell][0][ind]; // Store identity of the focal species
     double Mi = cellPopInd[cell][1][ind]; // Mass of chosen individual
     double Mj; // Store mass of consumer/other species, which will be calculated from the average mass of all individuals of that species
@@ -696,7 +698,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - H0))));
 
-        // If pOff is within 5% of the maximum pOff (1/G), then warn user at the end
+        // If pOff is within 1% of the maximum pOff (1/G), then warn user at the end
         if(pOff > (1/G) - (0.01*(1/G))) {
             pMax += 1;
         }
@@ -805,7 +807,7 @@ double gaussian(mt19937& eng) {
 void createTraits(double (&traits)[numSpec][2], mt19937& eng, double ppProp) {
     std::lognormal_distribution<double> distribution(0, 2.0);
     for (int i = 0; i < numSpec; i++) {
-        traits[i][0] = pow(10, distribution(eng));
+        traits[i][0] = distribution(eng);
         if(uniform(eng) < ppProp) {traits[i][1] = 1;} else {traits[i][1] = 0;};
     }
 }

@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l walltime=48:00:00
+#PBS -l walltime=72:00:00
 #PBS -l select=1:ncpus=8:mem=1gb:ompthreads=8
 #PBS -J 1-5
 
@@ -15,8 +15,8 @@ done
 
 # echo "${args[@]}"
 
-r0=(1000)
-K0=(10)
+r0=(100)
+K0=(1000)
 I0=(0.5)
 
 args=()

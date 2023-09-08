@@ -13,7 +13,7 @@ seeds = seq(100, 500, 100)
 
 for (x in seeds) {
 
-    gpath = paste0("/home/ben/Documents/TangledMT/Results/parallelResults/Seed_", x, "/Results/")
+    gpath = paste0("/home/ben/Documents/TangledMT/Results/parallelTest/Seed_", x, "/Results/")
     setwd(gpath)
 
     dir.create(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x), showWarnings = FALSE)
@@ -71,7 +71,7 @@ for (x in seeds) {
 
     ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/SAD_", x, ".pdf"), width = 15, height = 10)
 
-    ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
+    ## Test Damuth’s law (when logged the coefficient is the exponent)
     ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M), log10(n), col = as.factor(pp))) +
         geom_point(size = 7.5, alpha = 0.5) +
         geom_smooth(method = "lm", linewidth = 2) +
@@ -84,6 +84,8 @@ for (x in seeds) {
 
     ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/damuthLinear_", x, ".pdf"), width = 15, height = 10)
 
+
+    ## Test damuth law over time
     checkDamuth = function(x) {
         x = x %>% filter(pp == 0 & n > 4)
         if(nrow(x) > 4) {
@@ -108,6 +110,26 @@ for (x in seeds) {
         labs(x = "Time", y = "Damuth's Exponent")
 
     ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/damuthTime_", x, ".pdf"), width = 15, height = 10)
+
+    ## Test whether damuth law is more true if we group species by their mass
+    ## First group species abundances by binning their mass
+
+    binMass = totalPopSpec %>% filter (g == max(totalPopSpec$g) & pp == 0 & n > 4) %>%
+        mutate(M  = log10(M)) %>%
+        mutate(M = round(M, 1)) %>%
+        group_by(M) %>%
+        summarise(n = sum(n)) 
+
+    ggplot(binMass, aes(M, log10(n))) +
+    geom_point(size = 7.5, alpha = 1) +
+    geom_smooth(method = "lm", linewidth = 2) +
+    theme_classic() +
+    labs(x = "Log10(Body Mass)", y = "Log10(Abundance in MTaNa)",
+    title = "Damuth's Law with Species Grouped based on Mass \n(0.1 bins of log10(M))") +
+    theme(text = element_text(size = 30)) +
+    stat_poly_eq(use_label("eq"), size = 10, label.x = 0.9)
+
+    ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/damuthGrouped", x, ".pdf"), width = 15, height = 10)
 
     ## Plot abundance of species over time, including their mass
     ggplot(filter(totalPopSpec), aes(g, log10(n), col = log10(M), group = interaction(log10(M), as.factor(pp)), linetype = as.factor(pp))) +
