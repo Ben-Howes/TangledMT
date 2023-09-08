@@ -21,6 +21,7 @@ using namespace std;
 
 string dir = "/rds/general/user/bh719/home/MTaNa/Results/";   // Directory for output of model
 int habitatLoss = 0;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
+int climateChange = 1;                      // if 0 the temperature stays the same, if 1 then the temperature changes
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
@@ -31,17 +32,21 @@ const int L = 10;                           // Length of binary identifiers to u
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
 const int t = 500000000;                         // Number of time steps in the model
 int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
+int climateT = t/2;                         // Time step at which climate change occurs if climateChange == 1
 const int initPop = numSpec;                // Number of individuals to put into each cell at the start of the model.
 
 const float probDeath = 0.2;               // Probability of individual dying if chosen.
-double probImm = 0.0001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
+double probImm = 0.00001;                      // Probability of an individual immigrating into a cell (individual of a random species suddenly occurring in a cell).
 float probDisp = 0.001;                       // Probability of an individual dispersing from one cell to another cell. 
 double probMut = 0;                      // Probability of a number in the genome sequence switching from 0 -> 1, or 1 -> 0
 double propLoss = 0.5;                  // Proportion of cells that are lost if habitatLoss == 1 (0 - 1)
 
+
 // Metabolic theory variables
 double ppProp = 0.2;                       // Sets proportion of species that are primary producers
 double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
+double changeT = 5;                        // Amount to change temperature by if climateChange == 1
+double E = 0.65;                           // Activation energy
 double k = 8.6173*(10^-5);                  // Boltzmann constant
 double r0 = 10;                              // Multiplier for gain in mass of primary producers
 double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
@@ -345,6 +350,12 @@ int main(int argc, char *argv[]) {
             // Save teh new landscape array so it's easy to visualise the loss to the landscape
             store2DArray<int, cellRows>(landscapeArray, cellCols, cellRows, "/lossLandscape.txt", landpath);
         }
+
+        // Check if this is the timestep when climate change occurs
+        if (climateChange == 1 && i == climateT) {
+            // Update T to equal T + changeT
+            T += changeT;
+        }
         
 
         shuffle(cellOrder, numCells, eng);
@@ -467,9 +478,15 @@ void storeParam(string fileName, string outpath) {
     file << "pOff_Slope" << " alpha " << alpha << "\n";
     file << "pOff_Offset" << " H0 " << H0 << "\n";
     file << "Temperature" << " T " << T << "\n";
+    file << "Climate_Change" << " climateChange " << climateChange << "\n";
+    if(climateChange == 1) {
+        file << "Climate_Change_Time" << " climateT " << climateT << "\n";
+        file << "Climate_Change_Amount" << " changeT " << changeT << "\n";
+    }
     file << "habitatLoss" << " loss " << habitatLoss << "\n";
     if(habitatLoss == 1) {
         file << "Habitat_Loss_Time" << " lossT " << lossT << "\n";
+        file << "Habitat_Loss_Prop" << " propLoss " << propLoss << "\n";
     }
 
     file.close();
@@ -544,7 +561,7 @@ double prob, int cell, int numSpec, int &dispNum, mt19937& eng) {
             chosenSpec = cellPopInd[cell][0][chosenIndex];
 
             // Calculate distance individual is dispersing
-            disp = dispersalDist(cellPopInd[cell][1][chosenIndex], 0, eng);
+            disp = dispersalDist(cellPopInd[cell][1][chosenIndex], E, eng);
 
             // Check if this is the largest dispersal distance
             // for storing
@@ -644,11 +661,11 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
             // If the focal individual is the same species as the chosen individual
             // then don't calculate interactions (no cannibalism)
             if(Si != Sj) {
-                H += CE*Nj*consumptionRate(Mi, Mj, 0, traits, Nj);
+                H += CE*Nj*consumptionRate(Mi, Mj, E, traits, Nj);
             }
         }
         // Calculate interference of focal individual i with conspecifics (only applicable for non-primary producers)
-        Ii = Ni*searchRate(Mi, Mi, 0, traits);
+        Ii = Ni*searchRate(Mi, Mi, E, traits);
         H -= I0*Ii*Mi;       
     } else if (cellPopInd[cell][2][ind] == 1){
         Xi = getSpeciesCellMass(cell, Si, cellPopInd); // Mass of individuals in the cell of the same species
@@ -671,7 +688,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
             // If we want a truly individual based model then we should
             // calculate the consumption rate of each individual feeding on our focal species (see addConsumptionRate branch)
             Mj = cellPopSpec[cell][2][i]/cellPopSpec[cell][1][i];
-            H -= Nj*consumptionRate(Mj, Mi, 0, traits, Ni);
+            H -= Nj*consumptionRate(Mj, Mi, E, traits, Ni);
         }
     }
 
@@ -694,7 +711,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*pow(cellPopInd[cell][1][chosenIndex], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
-        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(0);
+        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(E);
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - H0))));
 
@@ -1074,7 +1091,7 @@ double handlingTime(double Mi, double Mj, double E, double (&traits)[numSpec][2]
 double consumptionRate(double Mi, double Mj, double E, double (&traits)[numSpec][2], int Nj) {
 
     double c = (searchRate(Mi, Mj, E, traits)*attackProb(Mi, Mj, traits)*Mj)/
-    (1 + (searchRate(Mi, Mj, E, traits)*attackProb(Mi, Mj, traits)*handlingTime(Mi, Mj, E, traits)*Nj));
+    (1 + (searchRate(Mi, Mj, E, traits)*attackProb(Mi, Mj, traits)*handlingTime(Mi, Mj, -E, traits)*Nj));
 
     return c;
 
@@ -1082,7 +1099,7 @@ double consumptionRate(double Mi, double Mj, double E, double (&traits)[numSpec]
 
 double arrhenius(double E) {
 
-    return pow(exp(1), -E/(k*(T+T0)));
+    return pow(exp(1), E/(k*(T+T0)));
 
 }
 
@@ -1133,7 +1150,7 @@ void storeConsumptionRate(ofstream &stream, vector <double> (&cellPopInd)[numCel
                         stream << gen+1 << " " << i+1 << " " << Si + 1 << " " << traits[Si][0] << " " << 
                         cellPopSpec[i][1][j] << " " << (Sj + 1) << " " << traits[Sj][0] << 
                         " " << cellPopSpec[i][1][k] << " " <<
-                        consumptionRate(Si, Sj, 0, traits, cellPopSpec[i][1][k]) << "\n";
+                        consumptionRate(Si, Sj, E, traits, cellPopSpec[i][1][k]) << "\n";
                     }
                 }
             } else {
