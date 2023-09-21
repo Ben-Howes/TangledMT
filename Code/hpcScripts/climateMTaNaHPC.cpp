@@ -21,7 +21,7 @@ using namespace std;
 
 string dir = "/rds/general/user/bh719/home/MTaNa/Results/";   // Directory for output of model
 int habitatLoss = 0;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
-int climateChange = 0;                      // if 0 the temperature stays the same, if 1 then the temperature changes
+int climateChange = 1;                      // if 0 the temperature stays the same, if 1 then the temperature changes
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 

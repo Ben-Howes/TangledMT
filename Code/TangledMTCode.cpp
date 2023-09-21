@@ -21,7 +21,7 @@ using namespace std;
 
 string dir = "../Results/TNM_Output/";   // Directory for output of model
 int habitatLoss = 0;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
-int climateChange = 0;                      // if 0 the temperature stays the same, if 1 then the temperature changes
+int climateChange = 1;                      // if 0 the temperature stays the same, if 1 then the temperature changes
 
 int defSeed = 1;                            // This is the default seed that will be used if one is not provided in the command line argument (recommend using command line
 
@@ -30,7 +30,7 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 2500000;                         // Number of time steps in the model
+const int t = 5000000;                         // Number of time steps in the model
 int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
 int climateT = t/2;                         // Time step at which climate change occurs if climateChange == 1
 const int initPop = numSpec;                // Number of individuals to put into each cell at the start of the model.
@@ -47,13 +47,13 @@ double ppProp = 0.2;                       // Sets proportion of species that ar
 double T = 20;                             // Set temperature in kelvin (273.15 kelvin = 0 celsius)
 double changeT = 5;                        // Amount to change temperature by if climateChange == 1
 double E = 0.65;                           // Activation energy
-double k = 8.6173*(10^-5);                  // Boltzmann constant
-double r0 = 10;                              // Multiplier for gain in mass of primary producers
-double K0 = 10;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
-double I0 = 0.1;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
+double k = 8.6173*pow(10, -5);                  // Boltzmann constant
+double r0 = 100;                              // Multiplier for gain in mass of primary producers
+double K0 = 1000;                             // Weighting of carrying capacity of each primary producing species Ki. Increased K0 increases primary producer abundance linearly.
+double I0 = 0.5;                         // Constant affecting the influence of interference (intraspecific competition), higher I0 = higher intraspecific competition
 double G0;                               // Store normalising constant for generation time which will be equal to 1/(mass of smallest species in pool)^0.25
 double D0;                               // Store normalising constant for dispersal distance, which will be based on the mass of the smallest spcies in the pool
-double alpha = 1;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
+double alpha = 0.4;                        // Sets slope of pOff, and therefore timescale, you want alpha to be large enough that species never hit their maximum pOff
 double H0 = log((1/(1*pow(10, -10)))-1)/alpha;      // Offset value so pR = a negligible value (1x10^-10) when H = 0
 
 ///////////////////////
@@ -89,7 +89,7 @@ double pMax = 0;                                   // Count the number of times 
 static const double two_pi  = 2.0*3.141592653;
 
 // Metabolic theory variables
-static double T0 = 273.15;                        // 0 celsius in Kelvin - used to add to the temperature we set in C to turn into Kelvin
+static double T0 = 273.15;                        // Kevlin when Celsius = 0, to use as offset with T
 
 //////////////////////////
 // Initialise functions //
@@ -263,9 +263,9 @@ int main(int argc, char *argv[]) {
 
     DIR* checkDir = opendir(outpath.c_str());
     if (checkDir) {
-        closedir(checkDir);
-        std::cout << "Directory for seed " << seed << " already exists, exiting....." << endl;
-        exit(0);
+        // closedir(checkDir);
+        std::cout << "Directory for seed " << seed << " already exists, overwriting....." << endl;
+        // exit(0);
     } else if (!checkDir){
         mkdir(outpath.c_str(),07777);
         std::cout << "Directory does not exist, creating... at " << outpath << endl;
@@ -290,14 +290,30 @@ int main(int argc, char *argv[]) {
     store2DArray<double, 2>(traits, 2, numSpec, "/traits.txt", outpath);
 
     // Calculate G0 based on minimum mass of species in the pool
+    // and on the maximum temperature the landscape could be at
     double minMi = traits[0][0];
     for (int i = 0; i < numSpec; i++){if(traits[i][0] < minMi){minMi = traits[i][0];}}
-    G0 = 1/pow(minMi, 0.25);
+
+    if(climateChange == 1) {
+        T = T + changeT;
+        G0 = 1/(pow(minMi, 0.25)*arrhenius(-E));
+        T = T - changeT;
+    } else {
+        G0 = 1/(pow(minMi, 0.25)*arrhenius(-E));
+        cout << arrhenius(-E) << endl;
+    }
 
     // Calculate D0 based on minimum mass of species in the pool
-    // Calculate the value of D0 needed to make the smallest species have a 10% chance
+    // Calculate the value of D0 needed to make the smallest species have a 1% chance
     // of dispersing at least 1 cell distance
-    D0 = 0.01/(pow(exp(1), (-1/1.5))*pow(minMi, 0.63));
+    // Do this based on maximum temperature of the landscape (if climateChange occurs)
+    if(climateChange == 1) {
+        T = T + changeT;
+        D0 = 0.01/((pow(exp(1), (-1/1.5))*pow(minMi, 0.63)*arrhenius(E)));
+        T = T - changeT;
+    } else {
+        D0 = 0.01/((pow(exp(1), (-1/1.5))*pow(minMi, 0.63)*arrhenius(E)));
+    }
 
     // Store parameters used in model
     storeParam("/Parameters.txt", outpath);
@@ -337,7 +353,9 @@ int main(int argc, char *argv[]) {
     s_consumptionRate.open(respath + "/consumptionRate.txt");
     ofstream s_reproduction;
     s_reproduction.open(respath + "/reproduction.txt");
-    
+    ofstream s_pMax;
+    s_pMax.open(respath + "/pMax.txt");
+
     // Start model dynamics //
     ///////////////////////////////////////////////////////////////////////////////////////
     for (int i = 0; i < t; i++) {
@@ -384,6 +402,8 @@ int main(int argc, char *argv[]) {
             //After each generation store all outputs
             store2ColFiles(s_totalPop, i, totalPop);
             store2ColFiles(s_totalRich, i, totalRich);
+            // Store number of times p_R was within 1% of pMax, and then reset to 0
+            store2ColFiles(s_pMax, i, pMax); pMax = 0;
             storeVec(s_totalPopSpec, totalPopSpec, i, 2);
             storeVec(s_cellPop, cellPop, i, 2);
             // storecellPopInd(s_cellPopInd, cellPopInd, i);
@@ -402,22 +422,14 @@ int main(int argc, char *argv[]) {
 
         }
     }
-    // // Store final outputs of burn ins
+    // // Store final output files
     storeNum(immNum, "/total_Immigrations.txt", finpath);
     storeNum(dispNum, "/total_Dispersals.txt", finpath);
     storeNum(maxDisp, "/maximum_Dispersal.txt", finpath);
-    storeNum(pMax, "/pMax.txt", finpath);
 
     // Close all streams to files
     s_totalPop.close(); s_totalRich.close(); s_cellPop.close(); s_totalPopSpec.close(); s_cellPopInd.close(); s_cellPopSpec.close();
-    s_consumptionRate.close(); s_reproduction.close();
-
-    // Warnings
-    if(pMax > 0) {
-        std::cout << "WARNING: pOff of an individual was within 1 percent of its maximum " << pMax << " (" << (pMax/(t*numCells))*100 << 
-        "%) times from a total attempts of " << t*numCells << endl;
-    }
-    
+    s_consumptionRate.close(); s_reproduction.close(); s_pMax.close();
 
     // end timer
     std::cout << "Elapsed(s)=" << since(start).count() << endl; 
@@ -474,7 +486,7 @@ void storeParam(string fileName, string outpath) {
     file << "Carrying_Capactiy" << " K0 " << K0 << "\n";
     file << "Interference" << " I0 " << I0 << "\n";
     file << "Generation_Constant" << " G0 " << G0 << "\n";
-    file << "Dispersal Constant" << " D0 " << D0 << "\n";
+    file << "Dispersal_Constant" << " D0 " << D0 << "\n";
     file << "pOff_Slope" << " alpha " << alpha << "\n";
     file << "pOff_Offset" << " H0 " << H0 << "\n";
     file << "Temperature" << " T " << T << "\n";
@@ -711,7 +723,7 @@ int (&cellList)[numCells][2], double (&traits)[numSpec][2], int cell, int numSpe
         H = calculateInteractions(cellPopInd, traits, cell, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*pow(cellPopInd[cell][1][chosenIndex], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
-        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(E);
+        G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(-E);
         H = H/cellPopInd[cell][1][chosenIndex];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - H0))));
 
@@ -737,7 +749,7 @@ void kill(vector <double> (&cellPopInd)[numCells][3], double prob, int cell, int
     double G;
 
     chosenIndex = randomIndex(cellPopInd, pop, numSpec, cell, eng);
-    G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25);
+    G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(-E);
 
     prob = prob/G;
 
@@ -1099,7 +1111,7 @@ double consumptionRate(double Mi, double Mj, double E, double (&traits)[numSpec]
 
 double arrhenius(double E) {
 
-    return pow(exp(1), E/(k*(T+T0)));
+    return pow(exp(1), (E*((T + T0) - (T0+20)))/(k*(T+T0)*(T0+20)));
 
 }
 
@@ -1192,12 +1204,12 @@ void storeReproduction(ofstream &stream, vector <double> (&cellPopInd)[numCells]
         H = calculateInteractions(cellPopInd, traits, i, numSpec, chosenIndex, cellPopSpec, gen) - 
             (B0*std::pow(traits[chosenSpec][0], 0.75));
         // Divide H (energy state) by the mass of the invidiaul to make the energy relative to the mass of the individual
-        G = G0*pow(traits[chosenSpec][0], 0.25);
+        G = G0*pow(traits[chosenSpec][0], 0.25)*arrhenius(-E);
         H = H/traits[chosenSpec][0];
         pOff = (1/G)*(1/(1 + exp(-alpha*(H - H0))));
 
         stream << gen + 1 << " " << i+1 << " " << chosenSpec+1 << " " << traits[chosenSpec][0] << " " << H << " " << 1/G << " " << 
-        pOff << " " << probDeath/(G0*pow(traits[chosenSpec][0], 0.25)) << "\n";
+        pOff << " " << probDeath/(G0*pow(traits[chosenSpec][0], 0.25)*arrhenius(-E)) << "\n";
 
         }
     }

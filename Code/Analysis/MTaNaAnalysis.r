@@ -9,7 +9,7 @@ library(lemon) ##facet_rep_wrap
 library(colourvalues) ## colour igraph vertices
 library(fields) ## add legend to igraph
 
-gpath = paste0("/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_10/Results/")
+gpath = paste0("/home/ben/Documents/TangledMT/Results/TNM_Output/Seed_1/Results/")
 setwd(gpath)
 
 ## Load datasets

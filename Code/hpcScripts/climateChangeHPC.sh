@@ -8,7 +8,7 @@
 
 ## So I need 
 seeds=()
-for s in $(seq 100 100 500)
+for s in $(seq 100 100 10000)
 do
     seeds+=("$s")
 done
@@ -36,7 +36,7 @@ do
     done
 done
 
-cp $HOME/MTaNa/Code/MTaNaHPC.cpp $TMPDIR
-g++ MTaNaHPC.cpp -fopenmp
+cp $HOME/MTaNa/Code/climateMTaNaHPC.cpp $TMPDIR
+g++ climateMTaNaHPC.cpp -fopenmp
 
 ./a.out ${args[$( expr "$PBS_ARRAY_INDEX" '*' 4 - 4)]} ${args[$( expr "$PBS_ARRAY_INDEX" '*' 4 - 3)]} ${args[$( expr "$PBS_ARRAY_INDEX" '*' 4 - 2)]} ${args[$( expr "$PBS_ARRAY_INDEX" '*' 4 - 1)]}
