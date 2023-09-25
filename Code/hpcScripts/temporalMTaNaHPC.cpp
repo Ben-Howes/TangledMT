@@ -19,7 +19,7 @@ using namespace std;
 
 // These variables can be easily changed to alter the output of the model
 
-string dir = "../Results/TNM_Output/";   // Directory for output of model
+string dir = "/rds/general/user/bh719/home/MTaNa/Results/";   // Directory for output of model
 int habitatLoss = 0;                      // If 0 the landscape stays the same, if 1 then the landscape looses habitat
 int climateChange = 0;                      // if 0 the temperature stays the same, if 1 then the temperature changes
 
@@ -30,7 +30,7 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 500000;                         // Number of time steps in the model
+const int t = 500000000;                         // Number of time steps in the model
 int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
 int climateT = t/2;                         // Time step at which climate change occurs if climateChange == 1
 const int initPop = numSpec;                // Number of individuals to put into each cell at the start of the model.
@@ -72,7 +72,7 @@ static double traits[numSpec][2];                        // Stores base traits o
 int totalPop = 0;                           // Stores the total population across all cells in the model at a given generation.
 vector <int> cellPop[2];                    // Stores the total population in each cell at a given generation.
 vector <int> totalPopSpec[2];                      // Stores the total population of each species at a given generation.
-vector <double> cellPopSpec[numCells][3];                 // Stores 0 = species, 1 = abundance of species in cell, 2 = biomass of species in cell
+vector <double> cellPopSpec[numCells][3];                 // Stores 0 = speces, 1 = abundance of species in cell, 2 = biomass of species in cell
 vector <double> cellPopInd[numCells][3];             // Stores which individuals are in which cells (0 = species, 1 = mass, 2 = primary producer
 int totalRich = 0;                          // Stores the total species richness of the model at a given generation.
 int cellList[numCells][2];                     // Lists numbers of cell (e,g with 6 cells it would read, 0,1,2,3,4,5), and whether they are non-forest or forest (0 = non-forest, 1 = forest).
@@ -300,6 +300,7 @@ int main(int argc, char *argv[]) {
         T = T - changeT;
     } else {
         G0 = 1/(pow(minMi, 0.25)*arrhenius(-E));
+        cout << arrhenius(-E) << endl;
     }
 
     // Calculate D0 based on minimum mass of species in the pool
@@ -377,9 +378,6 @@ int main(int argc, char *argv[]) {
 
         shuffle(cellOrder, numCells, eng);
         //Loop through each cell of the landscape
-        // Going over each cell in parallel
-        // Note that we only need to worry about dispersal as all other things are cell
-        // specific anyway
         for (int j = 0; j < numCells; j++) {
             int cell = cellOrder[j];
             // Only run the model dynamics if the cell has habitat (cellList[cell][1] == 1)
@@ -666,6 +664,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
     if(cellPopInd[cell][2][ind] == 0) {
         // Loop over consumption rate for our focal species on 
         // resources (all species) in the same cell
+        // Try making it parallel
         #pragma omp parallel for private(Sj, Nj, Mj) reduction(+:H)
         for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
             Sj = cellPopSpec[cell][0][i];
@@ -688,6 +687,7 @@ double calculateInteractions(vector <double> (&cellPopInd)[numCells][3], double 
     }
 
     // Loop over consumption of focal species
+    // Try making it parallel
     #pragma omp parallel for private(Sj, Nj, Mj) reduction(+:H)
     for (int i = 0; i < cellPopSpec[cell][0].size(); i++) {
         Sj = cellPopSpec[cell][0][i];
@@ -752,6 +752,7 @@ void kill(vector <double> (&cellPopInd)[numCells][3], double prob, int cell, int
     G = G0*pow(cellPopInd[cell][1][chosenIndex], 0.25)*arrhenius(-E);
 
     prob = prob/G;
+
 
         if (uniform(eng) <= prob) {
             removeInd(cellPopInd, cell, chosenIndex, cellPopSpec);
