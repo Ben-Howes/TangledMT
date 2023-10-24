@@ -38,3 +38,4 @@ pRPlot = ggplot(dat, aes(x, pR, col = as.factor(round(log10(m), 2)))) +
 pRPlot
 
 ggsave(filename = "pRPlot.pdf", plot = pRPlot,  width = 18, height = 10)
+ggsave(filename = "pRPlot.png", plot = pRPlot,  width = 18, height = 10)

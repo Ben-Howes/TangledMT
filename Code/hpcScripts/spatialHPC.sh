@@ -5,7 +5,7 @@
 
 ## So I need 
 seeds=()
-for s in $(seq 100 100 10000)
+for s in $(seq 10000 100 20000)
 do
     seeds+=("$s")
 done
@@ -13,7 +13,7 @@ done
 # echo "${args[@]}"
 
 r0=(100)
-K0=(1000)
+K0=(10000)
 I0=(0.5)
 
 args=()

@@ -66,7 +66,7 @@ ggplot(filter(totalPopSpec, g == max(totalPopSpec$g)), aes(log10(M), log10(n), f
 # ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/SAD_", x, ".pdf"), width = 15, height = 10)
 
 ## Test Damuth’s law the other way (when logged the coefficient is the exponent)
-ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M), log10(n), col = as.factor(pp))) +
+ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g)), aes(log10(M), log10(n), col = as.factor(pp))) +
     geom_point(size = 7.5, alpha = 0.5) +
     geom_smooth(method = "lm", linewidth = 2) +
     theme_classic() +
@@ -79,7 +79,7 @@ ggplot(totalPopSpec %>% filter (g == max(totalPopSpec$g) & n > 4), aes(log10(M),
 # ggsave(paste0(gpath, "../../../../Paper/Figures/testParallel/Seed_", x, "/damuthLinear_", x, ".pdf"), width = 15, height = 10)
 
 checkDamuth = function(x) {
-    x = x %>% filter(pp == 0 & n > 4)
+    x = x %>% filter(pp == 0)
     if(nrow(x) > 4) {
         mod = lm(log10(n) ~ log10(M), data = x)
         slope = coef(mod)[[2]]

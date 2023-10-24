@@ -49,13 +49,11 @@ testDists = function(x) {
     seed = x$seed[[1]]
     g = x$g[[1]]
 
-    lnormFit = tryCatch(fitdist(x$n, "lnorm"), error = function(e) {NA})
-    lsFit = tryCatch(fitsad(x$n, "ls"), error = function(e) {NA})
-    unFit = tryCatch(fitdist(x$n, "unif"), error = function(e) {NA})
-    nFit = tryCatch(fitdist(x$n, "norm"), error = function(e) {NA})
+    lnormFit = tryCatch(fitdist(x$M, "lnorm"), error = function(e) {NA})
+    unFit = tryCatch(fitdist(x$M, "unif"), error = function(e) {NA})
+    nFit = tryCatch(fitdist(x$M, "norm"), error = function(e) {NA})
 
     out = data.frame(lnorm = tryCatch(logLik(lnormFit), error = function(e) {NA}),
-        ls = tryCatch(logLik(lsFit), error = function(e) {NA}),
         unif = tryCatch(logLik(unFit), error = function(e) {NA}),
         norm = tryCatch(logLik(nFit), error = function(e) {NA})) %>%
         mutate(.before = 1, seed, g)
@@ -68,7 +66,7 @@ dists = totalPopSpec %>%
     group_map(~testDists(.), .keep = TRUE) %>%
     bind_rows()
 
-write_csv(dists, paste0("/home/ben/Documents/TangledMT/Results/temporalResults/SADDistribution.csv"))
+write_csv(dists, paste0("/home/ben/Documents/TangledMT/Results/temporalResults/MDDistribution.csv"))
 
 ## Calculate best distribution for each time step in each seed
 bestDist = dists %>%
@@ -91,4 +89,6 @@ ggplot(plotDist, aes(reorder(dist, -p), p)) +
     scale_y_continuous(expand = c(0, 0), limits = c(0,1.1)) +
     geom_text(aes(dist, y = p, label = round(p, 2)), vjust = -0.25, size = 8)
 
-ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/temporalResults/bestSADDistribution.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/temporalResults/bestMDDistribution.pdf"), width = 15, height = 10)
+
+

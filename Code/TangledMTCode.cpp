@@ -30,7 +30,7 @@ const int cellCols = 1;                    // Sets the number of cells in the co
 
 const int L = 10;                           // Length of binary identifiers to use in the model (genome sequences)
 const int numSpec = 1024;                    // Number of species in the model, the number of species must equal 2^L .
-const int t = 500000;                         // Number of time steps in the model
+const int t = 5000000;                         // Number of time steps in the model
 int lossT = t/2;                            // Time step at which habitat loss occurs if habitatLoss == 1
 int climateT = t/2;                         // Time step at which climate change occurs if climateChange == 1
 const int initPop = numSpec;                // Number of individuals to put into each cell at the start of the model.

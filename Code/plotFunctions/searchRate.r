@@ -42,6 +42,10 @@ ggplot(masses, aes(log10(mj), Aij, col = as.factor(round(log10(mi))))) +
     scale_colour_viridis_d() +
     theme(text = element_text(size = 30))
 
+ggsave(filename = "attackProb.png", width = 18, height = 10)
+ggsave(filename = "attackProb.pdf", width = 18, height = 10)
+
+
 calculateSearchRate = function(mi, mj, T) {
 
     aij = 2*(V0)*(D0)*(mi^(0.63))*calculateAttackProb(mi, mj)*(exp(1)^(-E/(k*(T + T0))))
