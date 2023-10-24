@@ -73,6 +73,7 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateDamuth.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateDamuth.png"), width = 15, height = 10)
 
 avgDam = damuth %>%
     group_by(g) %>%
@@ -93,6 +94,7 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateAvgDamuth.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateAvgDamuth.png"), width = 15, height = 10)
 
 ## Try some stats
 ## Test if damuthis significantly different before and after climate change
@@ -114,4 +116,4 @@ ggplot(modData, aes(as.factor(climate), dam)) +
     scale_fill_manual(values = c("lightblue", "red"))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/damuthDiff.pdf"), width = 15, height = 10)
-
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/damuthDiff.png"), width = 15, height = 10)

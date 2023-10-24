@@ -80,7 +80,7 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateMD.pdf"), width = 15, height = 10)
-
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateMD.png"), width = 15, height = 10)
 
 ## Look at difference in mean and sd of the log-normal distribution
 ## before and after climate change
@@ -117,3 +117,4 @@ ggplot() +
     scale_y_discrete(labels = c("After\nClimage Change", "Before\nClimate Change"))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateMDDist.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateMDDist.png"), width = 15, height = 10)

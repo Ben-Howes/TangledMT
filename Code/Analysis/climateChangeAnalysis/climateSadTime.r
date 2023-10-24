@@ -78,6 +78,7 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateAlpha.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateAlpha.png"), width = 15, height = 10)
 
 ## Look at difference in alpha before and after climate change
 ## Looking at the population at 2.0e08 to 2.5e08, and 2.5e08 to 5.0e-08
@@ -89,7 +90,6 @@ compareAlpha = fit %>%
 compareAlpha %>% 
     group_by(clim) %>%
     summarise(mean = mean(alpha, na.rm = T))
-
 
 ggplot() +
     geom_rect(aes(xmin = 0, xmax = tClimate, ymin = -Inf, ymax = Inf), fill = "lightblue", alpha = 0.5) +
@@ -103,3 +103,29 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateAlphaN.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateAlphaN.png"), width = 15, height = 10)
+
+## Plot log-series estimates before and after climate change
+lsParam = fit %>% 
+    mutate(climate = ifelse(g > tClimate, 0, 1)) %>%
+    group_by(climate) %>%
+    summarise(meanAlpha = mean(alpha, na.rm = T), meanN = mean(N, na.rm = T), meanAlphaN = mean(alphaN, na.rm = T))
+
+## Make distributions before and after climate
+climFit = data.frame(beforeClim = rls(1000000, lsParam$meanN[[1]], lsParam$meanAlpha[[1]]),
+    afterClim = rls(100000, lsParam$meanN[[2]], lsParam$meanAlpha[[2]])) %>%
+    pivot_longer(cols = everything(), names_to = "climate", values_to = "abundance")
+
+ggplot() + 
+    geom_histogram(data = climFit, aes(abundance, fill = climate), col = "black", binwidth = 5) +
+    theme_classic() +
+    xlim(0, 100) +
+    labs(x = "Abundance", y = "Density", fill = NULL) +
+    theme(text = element_text(size = 30)) +
+    theme(legend.position = c(0.85,0.85)) +
+    scale_fill_discrete(labels = c("After\nClimage Change", "Before\nClimate Change")) +
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_x_continuous(expand = c(0, 0))
+
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateLS.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateLS.png"), width = 15, height = 10)

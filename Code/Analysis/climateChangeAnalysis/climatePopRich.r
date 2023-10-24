@@ -68,6 +68,7 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climatePop.pdf"), width = 15, height = 10)
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climatePop.png"), width = 15, height = 10)
 
 ## Look at difference in population before and after climate change
 ## Looking at the population at 2.0e08 to 2.5e08, and 2.5e08 to 5.0e-08
@@ -93,7 +94,7 @@ ggplot() +
     scale_x_continuous(expand = c(0, 0))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateRich.pdf"), width = 15, height = 10)
-
+ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateRich.png"), width = 15, height = 10)
 
 ## Look at difference in population before and after climate change
 ## Looking at the population at 2.0e08 to 2.5e08, and 2.5e08 to 5.0e-08
