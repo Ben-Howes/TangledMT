@@ -74,6 +74,9 @@ ggplot() +
     stat_lineribbon(data = dist, aes(g, sdlog), col = "grey50") +
     geom_vline(xintercept = tClimate, linetype = "dashed", linewidth = 2) +
     theme_classic() +
+    theme(text = element_text(size = 20),
+    axis.text.x = element_blank(),
+    legend.position = "none") + 
     labs(x = "Time Step", y = "Value") +
     theme(text = element_text(size = 30)) +
     scale_y_continuous(expand = c(0, 0)) +
@@ -107,14 +110,15 @@ climateDist = data.frame(beforeClimate = rlnorm(1000000, meanlog = avgFit$meanlo
     pivot_longer(cols = c(beforeClimate, afterClimate), names_to = "climate", values_to = "value")
 
 ggplot() +
-    stat_halfeye(data = climateDist, aes(x = log10(value),y = climate, fill = climate, point_fill = climate),
+    stat_halfeye(data = climateDist, aes(x = log10(value), y = rev(climate), fill = climate, point_fill = climate),
     slab_colour = "black", slab_linewidth = 2, point_size = 7.5, shape = 21, stroke = 2.5, point_colour = "black",
     linewidth = 5) +
     theme_classic() +
-    theme(legend.position = "none") +
-    labs(x = "Log10(Mass)", y = NULL, fill = NULL, point_fill = NULL) +
+    theme(legend.position = "none",
+    axis.line.y = element_blank()) +
+    labs(x = "Log10(Body Mass)", y = NULL, fill = NULL, point_fill = NULL) +
     theme(text = element_text(size = 30)) +
-    scale_y_discrete(labels = c("After\nClimage Change", "Before\nClimate Change"))
+    scale_y_discrete(labels = NULL, expand = c(0, 0.1))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateMDDist.pdf"), width = 15, height = 10)
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateMDDist.png"), width = 15, height = 10)

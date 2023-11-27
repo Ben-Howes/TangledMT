@@ -73,6 +73,9 @@ ggplot() +
     geom_vline(xintercept = tClimate, linetype = "dashed", linewidth = 2) +
     labs(x = "Time Step", y = "Log-Series Alpha") +
     theme_classic() +
+    theme(text = element_text(size = 20),
+    axis.text.x = element_blank(),
+    legend.position = "none") + 
     theme(text = element_text(size = 20)) +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0))
@@ -98,6 +101,9 @@ ggplot() +
     geom_vline(xintercept = tClimate, linetype = "dashed", linewidth = 2) +
     labs(x = "Time Step", y = "Log-Series Alpha/N") +
     theme_classic() +
+    theme(text = element_text(size = 20),
+    axis.text.x = element_blank(),
+    legend.position = "none") +
     theme(text = element_text(size = 20)) +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0))
@@ -119,13 +125,13 @@ climFit = data.frame(beforeClim = rls(1000000, lsParam$meanN[[1]], lsParam$meanA
 ggplot() + 
     geom_histogram(data = climFit, aes(abundance, fill = climate), col = "black", binwidth = 5) +
     theme_classic() +
-    xlim(0, 100) +
     labs(x = "Abundance", y = "Density", fill = NULL) +
     theme(text = element_text(size = 30)) +
-    theme(legend.position = c(0.85,0.85)) +
+    theme(legend.position = c(0.85,0.85),
+    axis.text.y = element_blank()) +
     scale_fill_discrete(labels = c("After\nClimage Change", "Before\nClimate Change")) +
-    scale_y_continuous(expand = c(0, 0)) +
-    scale_x_continuous(expand = c(0, 0))
+    scale_y_continuous(expand = c(0, 0), limits = c(0, 550000)) +
+    scale_x_continuous(expand = c(0, 0), limits = c(1,100))
 
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateLS.pdf"), width = 15, height = 10)
 ggsave(paste0("/home/ben/Documents/TangledMT/Paper/Figures/climateChange/climateLS.png"), width = 15, height = 10)

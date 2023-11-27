@@ -63,7 +63,9 @@ ggplot() +
     geom_vline(xintercept = tClimate, linetype = "dashed", linewidth = 2) +
     labs(x = "Time Step", y = "Total Population") +
     theme_classic() +
-    theme(text = element_text(size = 20)) +
+    theme(text = element_text(size = 20),
+    axis.text.x = element_blank(),
+    legend.position = "none") +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0))
 
@@ -89,7 +91,9 @@ ggplot() +
     geom_vline(xintercept = tClimate, linetype = "dashed", linewidth = 2) +
     labs(x = "Time Step", y = "Species Richness") +
     theme_classic() +
-    theme(text = element_text(size = 20)) +
+    theme(text = element_text(size = 20),
+    axis.text.x = element_blank(),
+    legend.position = "none")  +
     scale_y_continuous(expand = c(0, 0)) +
     scale_x_continuous(expand = c(0, 0))
 
